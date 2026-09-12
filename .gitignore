@@ -5,3 +5,6 @@ data_h4/
 *.parquet
 *.pkl
 .DS_Store
+cache_binance/
+rapport.html
+reports_whipsaw.csv

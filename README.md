@@ -161,6 +161,30 @@ on vérifie que pas un seul trade passé ne bouge.
 
 ---
 
+## 3bis. Lancement automatique (sans ligne de commande)
+
+**Double-clique `LANCER.bat`.** Il installe ce qu'il faut, télécharge les données
+depuis `data.binance.vision`, teste la stratégie, lance les validations et ouvre
+un rapport HTML dans le navigateur. Rien à taper.
+
+Par défaut sur SOLUSDT, 2 ans de H4. Pour d'autres tokens, édite la dernière
+ligne de `LANCER.bat` :
+
+```bat
+%PY% run_auto.py SOLUSDT BTCUSDT ETHUSDT
+```
+
+Le rapport contient : le Sharpe, la comparaison croisement / cassure, la courbe
+de capital contre l'achat-conservation, les trois tests Monte Carlo avec leurs
+distributions, le résultat hors échantillon et un verdict en quatre lignes.
+
+> Un test sur un seul actif n'a **aucune diversification** : la volatilité du
+> portefeuille est celle du token. C'est la configuration la plus défavorable à
+> un Sharpe élevé — un résultat modeste sur SOL seul ne condamne pas le système
+> en multi-tokens. Le rapport le rappelle lui-même.
+
+---
+
 ## 4. Utilisation — dossier `kheirbot_sniper`
 
 ```bash
