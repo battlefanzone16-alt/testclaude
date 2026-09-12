@@ -122,6 +122,26 @@ def cmd_ablation(args):
                 f"{i}={int(v['count'])}@{v['mean']:+.2f}%" for i, v in by.iterrows()))
 
     df = pd.DataFrame(rows)
+
+    # Contribution marginale : ce que chaque étape ajoute ou retire, seule.
+    print("\n" + "=" * 100)
+    print("CONTRIBUTION MARGINALE (delta de Sharpe vs l'étape précédente)")
+    print("=" * 100)
+    prev = None
+    for _, r in df.iterrows():
+        if prev is None:
+            print(f"  {r['etape'][:60]:<62} Sharpe {r['sharpe']:+.3f}   (référence)")
+        else:
+            d = r["sharpe"] - prev
+            flag = "GARDER" if d > 0.05 else ("JETER" if d < -0.05 else "neutre")
+            print(f"  {r['etape'][:60]:<62} Sharpe {r['sharpe']:+.3f}  "
+                  f"delta {d:+.3f}  -> {flag}")
+        prev = r["sharpe"]
+    print("""
+Lecture : une étape marquée JETER dégrade le Sharpe sur TES données — retire-la
+de la config plutôt que de la garder par principe. Une étape neutre n'apporte
+rien : la retirer réduit le nombre de pièces, donc le risque d'overfitting.""")
+
     out = os.path.join(args.reports, "ablation.csv")
     os.makedirs(args.reports, exist_ok=True)
     df.to_csv(out, index=False, sep=";")

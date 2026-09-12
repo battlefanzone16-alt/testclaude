@@ -34,13 +34,24 @@ def _find(cols, aliases):
 
 
 def _to_datetime(s: pd.Series) -> pd.Series:
-    """Parse a time column that may be ISO strings, or epoch s/ms/us/ns."""
-    if np.issubdtype(s.dtype, np.number):
-        v = float(s.dropna().iloc[0])
+    """Parse a time column that may be ISO strings, or epoch s/ms/us/ns.
+
+    On teste la numéricité avec l'API pandas et non np.issubdtype : cette
+    dernière lève sur les dtypes d'extension (StringDtype, Int64, ...) que
+    pandas produit de plus en plus par défaut à la lecture d'un CSV.
+    """
+    if pd.api.types.is_datetime64_any_dtype(s):
+        out = pd.to_datetime(s, utc=True)
+        return out.dt.tz_localize(None)
+    if pd.api.types.is_numeric_dtype(s):
+        nn = s.dropna()
+        if nn.empty:
+            return pd.Series(pd.NaT, index=s.index)
+        v = float(nn.iloc[0])
         # Pick the epoch unit by order of magnitude of a sample value.
         unit = "s" if v < 1e11 else "ms" if v < 1e14 else "us" if v < 1e17 else "ns"
         return pd.to_datetime(s, unit=unit, utc=True).dt.tz_localize(None)
-    out = pd.to_datetime(s, utc=True, format="mixed", errors="coerce")
+    out = pd.to_datetime(s.astype("object"), utc=True, format="mixed", errors="coerce")
     return out.dt.tz_localize(None)
 
 
@@ -75,7 +86,8 @@ def load_ohlcv(path: str, tz_naive: bool = True) -> pd.DataFrame:
                 out[canon] = np.nan  # volume is optional
                 continue
             raise ValueError(f"Missing '{canon}' column. Got {list(df.columns)}")
-        out[canon] = pd.to_numeric(df[c].values, errors="coerce")
+        out[canon] = pd.to_numeric(pd.Series(df[c]).astype("object"),
+                                   errors="coerce").to_numpy(dtype=float)
 
     out.index.name = "timestamp"
     out = out[~out.index.isna()]

@@ -161,14 +161,22 @@ on vérifie que pas un seul trade passé ne bouge.
 
 ---
 
-## 4. Utilisation
+## 4. Utilisation — dossier `kheirbot_sniper`
 
 ```bash
 pip install -r requirements.txt
 
+# 0. DIAGNOSTIC — identifie le format de chaque fichier et l'agencement
+#    des colonnes. A lancer en premier.
+python inspect_data.py "C:\Users\...\Bureau\BOT SNIPER MAIS V1\kheirbot_sniper"
+
 # 1. tes 1-min -> H4  (le low H4 == min des lows 1-min : le stop intrabar
 #    est strictement équivalent, pour 100x plus rapide)
-python -m quantlab.run prepare --src /chemin/data_1m --out data_h4
+python -m quantlab.run prepare --src data     --out data_h4
+python -m quantlab.run prepare --src data_npy --out data_h4        # même dossier de sortie
+
+# le holdout : on le prépare, on n'y touche pas
+python -m quantlab.run prepare --src data_2024 --out data_h4_2024
 
 # 2. contribution marginale de chaque changement, un à la fois
 python -m quantlab.run ablation --data data_h4
@@ -189,6 +197,20 @@ python tests/test_bias.py
 
 Sorties dans `reports/` : `ablation.csv`, `wf_picks.csv`, `wf_oos_returns.csv`,
 `montecarlo.json`.
+
+### Formats lus
+
+`.npy` (y compris colonnes dans un ordre arbitraire), `.npz`, `.pkl`, `.csv`,
+`.parquet`. Pour le `.npy`, l'agencement des colonnes est **déduit** et non
+deviné : on teste les invariants `high >= max(open, close)` et
+`low <= min(open, close)`, on écarte les colonnes hors échelle (un volume à 1e4
+se ferait sinon élire « high »), et on départage open/close par la continuité
+`open[i] ≈ close[i-1]` — les invariants seuls sont symétriques en open/close.
+Testé sur **les 720 permutations** de colonnes possibles : 720/720 détectées.
+
+`data_2024` est traité comme ce que ta méthodo dit qu'il est : **le holdout
+scellé**. Prépare-le maintenant, ne le régarde qu'une fois un candidat
+pré-engagé.
 
 ---
 

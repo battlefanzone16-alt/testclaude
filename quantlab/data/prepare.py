@@ -15,6 +15,7 @@ import glob
 import pandas as pd
 
 from .loader import load_ohlcv
+from .npy_loader import load_any, scan_directory
 
 AGG = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
 
@@ -24,6 +25,20 @@ def resample_ohlcv(df: pd.DataFrame, rule: str = "4h") -> pd.DataFrame:
     return out.dropna(subset=["open", "high", "low", "close"])
 
 
+def _write_bars(h4: pd.DataFrame, out_dir: str, token: str) -> str:
+    """Ecrit en parquet si possible, sinon en CSV.
+
+    pyarrow est un extra : il ne doit pas être un point de rupture. Le reste du
+    pipeline relit indifféremment les deux formats.
+    """
+    try:
+        h4.to_parquet(os.path.join(out_dir, f"{token}.parquet"))
+        return "parquet"
+    except (ImportError, ValueError):
+        h4.to_csv(os.path.join(out_dir, f"{token}.csv"))
+        return "csv"
+
+
 def prepare_directory(src_dir: str, out_dir: str, rule: str = "4h",
                       pattern: str = "*", min_bars: int = 500) -> dict:
     """Convertit tous les fichiers de bougies d'un dossier en H4 parquet.
@@ -31,9 +46,8 @@ def prepare_directory(src_dir: str, out_dir: str, rule: str = "4h",
     Le nom du token est déduit du nom de fichier (BTCUSDT_1m.csv -> BTCUSDT).
     """
     os.makedirs(out_dir, exist_ok=True)
-    files = []
-    for ext in ("csv", "parquet", "pkl"):
-        files += glob.glob(os.path.join(src_dir, f"{pattern}.{ext}"))
+    files = [f for f in scan_directory(src_dir)
+             if pattern == "*" or glob.fnmatch.fnmatch(os.path.basename(f), pattern + ".*")]
     if not files:
         raise FileNotFoundError(f"Aucun fichier de données dans {src_dir}")
 
@@ -42,18 +56,14 @@ def prepare_directory(src_dir: str, out_dir: str, rule: str = "4h",
         name = os.path.basename(f)
         token = name.split(".")[0].split("_")[0].upper()
         try:
-            if f.endswith(".pkl"):
-                raw = pd.read_pickle(f)
-                if not isinstance(raw.index, pd.DatetimeIndex):
-                    raw = load_ohlcv(f)
-            else:
-                raw = load_ohlcv(f)
+            raw = load_any(f)
             h4 = resample_ohlcv(raw, rule)
             if len(h4) < min_bars:
                 report[token] = f"ignoré ({len(h4)} bougies < {min_bars})"
                 continue
-            h4.to_parquet(os.path.join(out_dir, f"{token}.parquet"))
-            report[token] = f"{len(h4)} bougies  {h4.index[0]:%Y-%m-%d} -> {h4.index[-1]:%Y-%m-%d}"
+            ext = _write_bars(h4, out_dir, token)
+            report[token] = (f"{len(h4)} bougies  {h4.index[0]:%Y-%m-%d} -> "
+                             f"{h4.index[-1]:%Y-%m-%d}  [{ext}]")
         except Exception as e:
             report[token] = f"ERREUR: {e}"
     return report
@@ -64,13 +74,12 @@ def load_universe(data_dir: str, exclude: list[str] | None = None,
     """Charge un dossier de fichiers H4 en dict {token: DataFrame}."""
     exclude = set(exclude or [])
     universe = {}
-    files = sorted(glob.glob(os.path.join(data_dir, "*.parquet")) +
-                   glob.glob(os.path.join(data_dir, "*.csv")))
+    files = scan_directory(data_dir)
     for f in files:
         token = os.path.basename(f).split(".")[0].split("_")[0].upper()
         if token in exclude:
             continue
-        df = pd.read_parquet(f) if f.endswith(".parquet") else load_ohlcv(f)
+        df = pd.read_parquet(f) if f.endswith(".parquet") else load_any(f)
         if len(df) >= min_bars:
             universe[token] = df
     if not universe:
