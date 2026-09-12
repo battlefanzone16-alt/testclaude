@@ -214,6 +214,37 @@ pré-engagé.
 
 ---
 
+## 4bis. Synthétique vs réel — règle de lecture
+
+Tout ce qui tourne dans ce conteneur tourne sur des **données simulées**
+(`quantlab/data/synth.py`), parce que le réseau y bloque toute source de marché
+et que tes données sont sur ton disque. Un chiffre mesuré sur ces séries décrit
+le générateur, pas le marché.
+
+C'est d'autant plus vrai que le générateur **injecte des régimes de tendance
+persistants** (`_regime_drift`) : un système de suivi de tendance y est avantagé
+par construction. Mesurer un avantage du suivi de tendance dessus serait une
+preuve circulaire.
+
+Règle appliquée dans ce dépôt :
+
+| | mesuré sur | valeur |
+|---|---|---|
+| Kalman ≡ EMA-63 | **algèbre** (gain stationnaire) | vraie partout, tes données comprises |
+| tests anti-biais (`tests/test_bias.py`) | synthétique | valide : on teste le MOTEUR, pas le marché |
+| taux de faux départs, Sharpe, PF | synthétique | **sans valeur** — à remesurer chez toi |
+
+Les séries simulées sont préfixées `SYN`. `measure_whipsaw.py` **refuse de
+tourner** dessus (`refuser_synthetique()`) : un taux de faux départs n'a de sens
+que sur du marché réel.
+
+```bash
+# le seul endroit où ce chiffre a un sens : ton dossier à toi
+python measure_whipsaw.py data_h4
+```
+
+---
+
 ## 5. Où en est l'objectif Sharpe > 1.5
 
 **Honnêtement : je ne peux pas le certifier, et personne ne le peut sans tes données.**
