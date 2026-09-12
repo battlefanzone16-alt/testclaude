@@ -11,3 +11,6 @@ reports_whipsaw.csv
 sol_*.parquet
 zoo_2026.parquet
 null_*.npz
+data_univ/
+pos_4h.pkl
+zoo_*.parquet
