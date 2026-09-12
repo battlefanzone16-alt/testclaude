@@ -63,8 +63,16 @@ def portfolio_returns(panel, pos: pd.DataFrame, vol_target=0.20, vol_win=60,
 
     fwd = ret.shift(-1).fillna(0.0)
     pnl = (u * fwd).sum(axis=1)
-    turn = u.diff().abs().sum(axis=1).fillna(u.abs().sum(axis=1))
-    net = (pnl - turn * cost).iloc[:-1]
+    du = u.diff()
+    du.iloc[0] = u.iloc[0]
+    du = du.abs()
+    # `cost` accepte un scalaire OU un panneau (token x barre) : un spread unique
+    # pour 138 tokens est faux d'un facteur 46 entre SOL et DGB.
+    if isinstance(cost, pd.DataFrame):
+        fric = (du * cost.reindex_like(du).ffill()).sum(axis=1)
+    else:
+        fric = du.sum(axis=1) * cost
+    net = (pnl - fric).iloc[:-1]
     return {"net": net, "gross": u.abs().sum(axis=1).iloc[:-1],
             "nnet": u.sum(axis=1).iloc[:-1], "tf": panel["tf"]}
 
