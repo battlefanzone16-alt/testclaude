@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+reports/
+data_h4/
+*.parquet
+*.pkl
+.DS_Store
