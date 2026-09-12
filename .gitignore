@@ -16,3 +16,7 @@ pos_4h.pkl
 zoo_*.parquet
 data_univ_1d/
 pos_1d.pkl
+data_fund/
+data_flow/
+xs_*.parquet
+univers_top40.json
