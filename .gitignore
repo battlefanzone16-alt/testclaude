@@ -14,3 +14,5 @@ null_*.npz
 data_univ/
 pos_4h.pkl
 zoo_*.parquet
+data_univ_1d/
+pos_1d.pkl

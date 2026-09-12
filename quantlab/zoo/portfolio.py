@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 COST_PER_SIDE = (0.086 / 2.0 + 0.02 * 3.0) / 100.0
-BARS_PER_YEAR = {"1h": 24 * 365, "4h": 6 * 365}
+BARS_PER_YEAR = {"1h": 24 * 365, "4h": 6 * 365, "1d": 365}
 
 
 def load_panel(paths: dict, tf: str) -> dict:

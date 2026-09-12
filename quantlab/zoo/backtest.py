@@ -10,7 +10,7 @@ import pandas as pd
 from scipy import stats
 
 COST_PER_SIDE = (0.086 / 2.0 + 0.02 * 3.0) / 100.0      # 0.103% — identique au dépôt
-BARS_PER_YEAR = {"1h": 24 * 365, "4h": 6 * 365}
+BARS_PER_YEAR = {"1h": 24 * 365, "4h": 6 * 365, "1d": 365}
 
 
 def run(df: pd.DataFrame, pos: pd.Series, tf: str, window=None, cost=COST_PER_SIDE) -> dict:
