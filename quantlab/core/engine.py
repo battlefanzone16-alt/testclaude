@@ -38,9 +38,18 @@ def compute_signals(df: pd.DataFrame, cfg: Config) -> dict:
     cross_up = (close > kal) & (prev_close <= prev_kal)
     cross_dn = (close < kal) & (prev_close >= prev_kal)
 
+    # Cassure de bande : on compare au niveau de la bougie PRECEDENTE, sinon la
+    # bande du jour contient déjà le high du jour et la condition est dégénérée.
+    prev_up = np.concatenate(([np.nan], up[:-1]))
+    prev_lo = np.concatenate(([np.nan], lo[:-1]))
+    brk_up = (close > prev_up) & (prev_close <= prev_up)
+    brk_dn = (close < prev_lo) & (prev_close >= prev_lo)
+
     return {"close": close, "high": high, "low": low, "kal": kal,
             "upper": up, "lower": lo, "median": med, "atr": a,
-            "cross_up": cross_up, "cross_dn": cross_dn}
+            "cross_up": cross_up, "cross_dn": cross_dn,
+            "brk_up": np.nan_to_num(brk_up).astype(bool),
+            "brk_dn": np.nan_to_num(brk_dn).astype(bool)}
 
 
 def _hard_stop_price(i: int, side: int, s: dict, cfg: Config) -> float:
@@ -77,13 +86,20 @@ def backtest_token(df: pd.DataFrame, cfg: Config, token: str = "TOKEN") -> dict:
     # Les deux conditions sont équivalentes : tout croisement haussier a déjà,
     # par construction, une pente Kalman positive. Vérifié empiriquement sur
     # 1377 croisements : 0 exception. Inutile de le tester comme une option.
+    if cfg.entry_mode == "donchian_breakout":
+        sig_up, sig_dn = s["brk_up"], s["brk_dn"]
+    elif cfg.entry_mode == "kalman_cross":
+        sig_up, sig_dn = s["cross_up"], s["cross_dn"]
+    else:
+        raise ValueError(f"entry_mode inconnu : {cfg.entry_mode}")
+
     i = 0
     while i < n - 1:
         side = 0
-        if cfg.enable_long and s["cross_up"][i] and np.isfinite(med[i]):
+        if cfg.enable_long and sig_up[i] and np.isfinite(med[i]):
             if (not cfg.entry_above_median) or close[i] > med[i]:
                 side = 1
-        if side == 0 and cfg.enable_short and s["cross_dn"][i] and np.isfinite(med[i]):
+        if side == 0 and cfg.enable_short and sig_dn[i] and np.isfinite(med[i]):
             if (not cfg.entry_above_median) or close[i] < med[i]:
                 side = -1
         if side == 0:

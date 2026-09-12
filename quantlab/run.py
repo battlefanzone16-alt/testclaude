@@ -82,23 +82,28 @@ def cmd_ablation(args):
     v5 = Config(enable_long=True, enable_short=False, entry_above_median=False,
                 exit_on_median=True, exit_on_kalman=True, sl_mode="wick",
                 max_sl_dist=None, vol_target_annual=None, max_gross=1e9,
-                max_net=None)
+                max_net=None, entry_mode="kalman_cross")
 
     steps = [
         ("0. v5 baseline (long, 2-phases, pas de portefeuille)", v5),
         ("1. + gate entrée au-dessus de la médiane", v5.copy_with(
             entry_above_median=True, exit_on_kalman=False)),
+        ("1b. entrée par CASSURE Donchian au lieu du croisement", v5.copy_with(
+            entry_above_median=True, exit_on_kalman=False,
+            entry_mode="donchian_breakout")),
         ("2. + short activé (parité constatée dans le CSV)", v5.copy_with(
-            entry_above_median=True, exit_on_kalman=False, enable_short=True)),
+            entry_above_median=True, exit_on_kalman=False, enable_short=True,
+            entry_mode="donchian_breakout")),
         ("3. + cap d'exposition brute portefeuille", v5.copy_with(
             entry_above_median=True, exit_on_kalman=False, enable_short=True,
-            max_gross=3.0)),
+            entry_mode="donchian_breakout", max_gross=3.0)),
         ("4. + cap d'exposition nette (bêta marché)", v5.copy_with(
             entry_above_median=True, exit_on_kalman=False, enable_short=True,
-            max_gross=3.0, max_net=1.5)),
+            entry_mode="donchian_breakout", max_gross=3.0, max_net=1.5)),
         ("5. + filtre SL trop large", v5.copy_with(
             entry_above_median=True, exit_on_kalman=False, enable_short=True,
-            max_gross=3.0, max_net=1.5, max_sl_dist=0.12)),
+            entry_mode="donchian_breakout", max_gross=3.0, max_net=1.5,
+            max_sl_dist=0.12)),
         ("6. + vol targeting 20% (= v6 complet)", Config()),
     ]
 

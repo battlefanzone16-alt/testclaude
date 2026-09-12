@@ -22,6 +22,13 @@ class Config:
     # --- LIBRE : balayé en walk-forward ---
     dc_length: int = 20
 
+    # --- SIGNAL D'ENTREE (STRUCTUREL) ---
+    # "kalman_cross"      : croisement close/Kalman (= EMA-63). Un EVENEMENT :
+    #                       se déclenche à chaque oscillation autour de la ligne.
+    # "donchian_breakout" : cassure du plus-haut/plus-bas Donchian. Un ETAT :
+    #                       le prix doit battre tout le passé récent.
+    entry_mode: str = "donchian_breakout"
+
     # --- DIRECTION (STRUCTUREL) ---
     enable_long: bool = True
     enable_short: bool = True          # v5 tournait long-only ; le CSV montre la parité
