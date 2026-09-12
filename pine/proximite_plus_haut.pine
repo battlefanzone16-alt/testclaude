@@ -1,0 +1,208 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+//  PROXIMITÉ AU PLUS HAUT — signal transversal (George & Hwang, 2004)
+//
+//  IDÉE : on ne demande pas « ce token va-t-il monter ? » mais « va-t-il faire
+//  mieux QUE LES AUTRES ? ». Pour chaque token du panier on calcule
+//
+//         score = clôture / plus haut des N dernières bougies      (0 < score <= 1)
+//
+//  puis on CLASSE les tokens entre eux. On achète ceux qui sont le plus près de
+//  leur plus haut, on vend ceux qui en sont le plus loin.
+//
+//  ─── CE QUE CE SCRIPT PEUT ET NE PEUT PAS FAIRE ────────────────────────────
+//  La stratégie d'origine tient 40 positions simultanées, neutres en dollars,
+//  à volatilité ciblée. Pine ne trade QUE le symbole du graphique. Ce script
+//  reproduit donc UNE JAMBE du portefeuille : il prend position sur le symbole
+//  affiché selon SON rang dans le panier.
+//
+//  Conséquence : la courbe de capital sera bien plus erratique que celle du
+//  portefeuille complet, et son Sharpe n'a AUCUNE raison de ressembler au 1,00
+//  mesuré sur 40 noms. Ce qu'on regarde ici, c'est si le CLASSEMENT a un
+//  pouvoir prédictif sur ce symbole — pas la performance du système.
+//
+//  ─── COÛTS ────────────────────────────────────────────────────────────────
+//  Frais par défaut 0,06 % par côté = taker Binance 0,05 % + moitié du spread
+//  mesuré sur les perps les plus liquides (~1,6 bps). C'est mesuré sur les
+//  archives de carnet, pas supposé. NE LES METS PAS À ZÉRO : sur ce signal le
+//  coût décide du signe du résultat.
+//
+//  ─── OÙ LE SIGNAL EXISTE ──────────────────────────────────────────────────
+//  Mesuré 2022-2026 sur les perps Binance, Sharpe brut par tranche de 20 rangs
+//  de liquidité :  rangs 1-20 : +1,61   21-40 : +0,42   41-60 : -0,59
+//                  61-80 : -0,99        81-100 : -1,31
+//  L'effet vit dans les ~20 plus liquides et s'INVERSE au-delà du rang 40.
+//  Élargir le panier à des tokens moins liquides détruit le résultat.
+// ─────────────────────────────────────────────────────────────────────────────
+
+strategy("Proximité au plus haut — transversal", shorttitle="PROX-HAUT",
+     overlay                 = false,
+     initial_capital         = 10000,
+     default_qty_type        = strategy.percent_of_equity,
+     default_qty_value       = 100,
+     commission_type         = strategy.commission.percent,
+     commission_value        = 0.06,
+     pyramiding              = 0,
+     calc_on_every_tick      = false,
+     process_orders_on_close = false)
+
+// ═══ PARAMÈTRES ══════════════════════════════════════════════════════════════
+grpS = "Signal"
+lookback = input.int(540, "Fenêtre du plus haut (bougies)", minval=20, maxval=2000, group=grpS,
+     tooltip="540 bougies H4 ≈ 90 jours. Le plateau mesuré tient de 90 à 540 bougies ; " +
+             "en dessous de 90 la rotation détruit le résultat.")
+qThresh  = input.float(0.20, "Seuil de rang (0,2 = quintile)", minval=0.05, maxval=0.50, step=0.05, group=grpS,
+     tooltip="0,20 : on achète le quintile supérieur du classement, on vend l'inférieur, " +
+             "on reste à plat entre les deux.")
+minNames = input.int(8, "Tokens valides minimum", minval=3, maxval=40, group=grpS,
+     tooltip="En dessous, le classement n'a pas de sens : on reste à plat.")
+
+grpT = "Sens autorisés"
+allowLong  = input.bool(true, "Autoriser les achats", group=grpT)
+allowShort = input.bool(true, "Autoriser les ventes", group=grpT,
+     tooltip="Le signal d'origine est neutre en dollars. En long seul tu récupères " +
+             "l'exposition au marché, ce qui change la nature du résultat.")
+
+grpU = "Panier de référence — les 20 perps les plus liquides"
+s01 = input.symbol("BINANCE:BTCUSDT.P",  "01", group=grpU)
+s02 = input.symbol("BINANCE:ETHUSDT.P",  "02", group=grpU)
+s03 = input.symbol("BINANCE:SOLUSDT.P",  "03", group=grpU)
+s04 = input.symbol("BINANCE:XRPUSDT.P",  "04", group=grpU)
+s05 = input.symbol("BINANCE:DOGEUSDT.P", "05", group=grpU)
+s06 = input.symbol("BINANCE:BNBUSDT.P",  "06", group=grpU)
+s07 = input.symbol("BINANCE:ADAUSDT.P",  "07", group=grpU)
+s08 = input.symbol("BINANCE:AVAXUSDT.P", "08", group=grpU)
+s09 = input.symbol("BINANCE:LINKUSDT.P", "09", group=grpU)
+s10 = input.symbol("BINANCE:DOTUSDT.P",  "10", group=grpU)
+s11 = input.symbol("BINANCE:LTCUSDT.P",  "11", group=grpU)
+s12 = input.symbol("BINANCE:TRXUSDT.P",  "12", group=grpU)
+s13 = input.symbol("BINANCE:NEARUSDT.P", "13", group=grpU)
+s14 = input.symbol("BINANCE:ATOMUSDT.P", "14", group=grpU)
+s15 = input.symbol("BINANCE:UNIUSDT.P",  "15", group=grpU)
+s16 = input.symbol("BINANCE:AAVEUSDT.P", "16", group=grpU)
+s17 = input.symbol("BINANCE:FILUSDT.P",  "17", group=grpU)
+s18 = input.symbol("BINANCE:ETCUSDT.P",  "18", group=grpU)
+s19 = input.symbol("BINANCE:XLMUSDT.P",  "19", group=grpU)
+s20 = input.symbol("BINANCE:BCHUSDT.P",  "20", group=grpU)
+
+showTable = input.bool(true, "Afficher le classement", group="Affichage")
+
+// ═══ RÉCUPÉRATION DU PANIER ══════════════════════════════════════════════════
+// Une requête par symbole. Le score est calculé DANS le contexte du symbole
+// demandé, ce qui évite d'aligner des séries à la main.
+// lookahead_off : on ne lit jamais une bougie non clôturée du symbole distant.
+// v6 autorise 40 requêtes uniques (64 en Professional) — 20 laisse de la marge.
+// v6 uniquement : request.* peut être appelé depuis une fonction (impossible en v5).
+f_score(string sym) =>
+    request.security(sym, timeframe.period, close / ta.highest(high, lookback),
+         lookahead = barmerge.lookahead_off)
+
+v01 = f_score(s01)
+v02 = f_score(s02)
+v03 = f_score(s03)
+v04 = f_score(s04)
+v05 = f_score(s05)
+v06 = f_score(s06)
+v07 = f_score(s07)
+v08 = f_score(s08)
+v09 = f_score(s09)
+v10 = f_score(s10)
+v11 = f_score(s11)
+v12 = f_score(s12)
+v13 = f_score(s13)
+v14 = f_score(s14)
+v15 = f_score(s15)
+v16 = f_score(s16)
+v17 = f_score(s17)
+v18 = f_score(s18)
+v19 = f_score(s19)
+v20 = f_score(s20)
+
+// Score du symbole du graphique, calculé nativement : aucune requête consommée.
+myScore = close / ta.highest(high, lookback)
+
+// ═══ CLASSEMENT ══════════════════════════════════════════════════════════════
+vals = array.from(v01, v02, v03, v04, v05, v06, v07, v08, v09, v10,
+                  v11, v12, v13, v14, v15, v16, v17, v18, v19, v20)
+syms = array.from(s01, s02, s03, s04, s05, s06, s07, s08, s09, s10,
+                  s11, s12, s13, s14, s15, s16, s17, s18, s19, s20)
+
+scores = array.new_float()
+names  = array.new_string()
+
+for i = 0 to array.size(vals) - 1
+    sc = array.get(vals, i)
+    sy = array.get(syms, i)
+    // On écarte le symbole du graphique s'il figure aussi dans le panier,
+    // sinon il serait compté deux fois dans le classement.
+    if not na(sc) and not str.contains(sy, syminfo.ticker)
+        array.push(scores, sc)
+        array.push(names, sy)
+
+// Le symbole du graphique entre dans le classement au même titre que les autres.
+hasMine = not na(myScore)
+if hasMine
+    array.push(scores, myScore)
+    array.push(names, syminfo.ticker)
+
+nValid = array.size(scores)
+
+// Rang en centile : part des tokens que le symbole du graphique dépasse.
+// 1,0 = le plus proche de son plus haut ; 0,0 = le plus loin.
+nBelow = 0
+if hasMine and nValid > 1
+    for i = 0 to nValid - 1
+        if array.get(scores, i) < myScore
+            nBelow += 1
+// float() explicite : en v6 la division entière ne se comporte pas comme en v5.
+pct = nValid > 1 ? nBelow / float(nValid - 1) : na
+
+// ═══ POSITIONNEMENT ══════════════════════════════════════════════════════════
+// Décision à la clôture de la bougie, exécution à l'ouverture de la suivante
+// (process_orders_on_close = false). C'est exactement la convention du backtest
+// Python : aucune information de la bougie i+1 ne sert à décider en i.
+enough  = nValid >= minNames and hasMine and not na(pct)
+goLong  = enough and allowLong  and pct >= 1.0 - qThresh
+goShort = enough and allowShort and pct <= qThresh
+
+if goLong and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+if goShort and strategy.position_size >= 0
+    strategy.entry("Short", strategy.short)
+if not goLong and not goShort and strategy.position_size != 0
+    strategy.close_all(comment = "hors zone")
+
+// ═══ VISUEL ══════════════════════════════════════════════════════════════════
+colLong  = #3f6e51
+colShort = #a34a3a
+colFlat  = #69737e
+zoneCol  = goLong ? colLong : goShort ? colShort : colFlat
+
+plot(na(pct) ? na : pct * 100, "Rang centile", color=zoneCol, linewidth=2)
+plot(100.0 * (1.0 - qThresh), "Seuil achat", color=color.new(colLong, 45), style=plot.style_linebr)
+plot(100.0 * qThresh, "Seuil vente", color=color.new(colShort, 45), style=plot.style_linebr)
+hline(50.0, "Médiane", color=color.new(colFlat, 70), linestyle=hline.style_dotted)
+
+plot(myScore * 100.0, "Score brut (% du plus haut)", color=color.new(#36617f, 60), display=display.data_window)
+plot(nValid, "Tokens classés", color=color.new(colFlat, 100), display=display.data_window)
+
+// Table de classement : le vrai intérêt pour comprendre ce que fait le signal.
+var table tbl = table.new(position.top_right, 3, 22, border_width=1)
+if showTable and barstate.islast and nValid > 0
+    order = array.sort_indices(scores, order.descending)
+    table.cell(tbl, 0, 0, "#",      text_color=color.gray, text_size=size.tiny)
+    table.cell(tbl, 1, 0, "TOKEN",  text_color=color.gray, text_size=size.tiny)
+    table.cell(tbl, 2, 0, "% HAUT", text_color=color.gray, text_size=size.tiny)
+    nShow = int(math.min(nValid, 20))
+    for i = 0 to nShow - 1
+        idx  = array.get(order, i)
+        nm   = array.get(names, idx)
+        sc   = array.get(scores, idx)
+        self = str.contains(nm, syminfo.ticker)
+        // Rang normalisé du token affiché : 1,0 en tête de classement, 0,0 en queue.
+        rk   = nValid > 1 ? (nValid - 1 - i) / float(nValid - 1) : 0.5
+        c    = rk >= 1.0 - qThresh ? colLong : rk <= qThresh ? colShort : color.gray
+        bg   = self ? color.new(#36617f, 70) : color.new(color.gray, 100)
+        table.cell(tbl, 0, i + 1, str.tostring(i + 1), text_color=c, bgcolor=bg, text_size=size.tiny)
+        table.cell(tbl, 1, i + 1, str.replace_all(nm, "BINANCE:", ""), text_color=c, bgcolor=bg, text_size=size.tiny)
+        table.cell(tbl, 2, i + 1, str.tostring(sc * 100.0, "#.0"), text_color=c, bgcolor=bg, text_size=size.tiny)
