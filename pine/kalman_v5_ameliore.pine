@@ -29,6 +29,16 @@
 //     Symétrique, les deux effets s'annulent (+1,167 → +1,163, c'est-à-dire
 //     rien). Testé sur 15 combinaisons (5 seuils de cassure × 3 longueurs
 //     Donchian) : il améliore les 15, delta médian +0,175.
+//  6. MÉDIANE SOUS LE KALMAN (longs)        +1,31 → +1,57
+//     Durcissement du 5 : exiger que la MÉDIANE elle-même soit sous le Kalman,
+//     pas seulement la clôture au-dessus. Comme med < kal < close, ça implique
+//     le point 5 et va plus loin : la structure Donchian doit déjà être sous la
+//     moyenne. Robuste : améliore 9/9 combinaisons (3 seuils × 3 Donchian),
+//     delta médian +0,226.
+//  7. VOLUME > SMA20 SUR LA CASSURE         +1,57 → +1,63   Calmar 2,20
+//     Plateau large : de MA10 à MA50, multiplicateur 1,0 à 1,2, le Sharpe reste
+//     entre +1,47 et +1,82. MA50 ×1,2 donne le maximum (+1,82) — on garde MA20
+//     ×1,0 justement pour ne pas retenir le maximum de 12 essais.
 //
 //  ─── CE QUI A ÉTÉ MESURÉ NUISIBLE ET RETIRÉ ────────────────────────────────
 //  TIME_BELOW_N=1 (-0,21, la pire variante) · stratagème pente (ampute la queue
@@ -36,21 +46,25 @@
 //  échantillon, dégrade hors échantillon) · TP fixe à +2R ou +3R (met la queue
 //  droite à ZÉRO). Aucun n'est implémenté ici — volontairement.
 //
-//  ─── HORS ÉCHANTILLON (2026, choix faits sur 2024-2025) ────────────────────
-//                        2026 complet   2026 S1
-//    spec d'origine         -1,36        -2,16
-//    améliorée              +0,56        -0,16
-//    améliorée + gate       +0,83        +0,19
-//  Le gate longs est ce qui fait repasser le 1er semestre 2026 au-dessus de
-//  zéro. Il améliore CHACUN des cinq semestres mesurés.
+//  ─── SHARPE PAR SEMESTRE (choix faits sur 2024-2025) ───────────────────────
+//                      24S2  25S1  25S2 | 26S1  26S2   global  MDD    Calmar
+//    spec d'origine    1,21  0,47  0,21 |-2,16  0,04    -0,02 -16,4%  -0,03
+//    + ATR/cassure/BE  2,57  1,02  0,78 |-0,16  2,00    +1,17  -4,4%   1,08
+//    + gate longs      2,57  1,17  0,93 |+0,19  1,58    +1,31  -4,0%   1,37
+//    + méd<Kal + vol   2,00  1,62  1,10 |+1,09  2,02    +1,63  -2,8%   2,20
+//  Données au 12 sept. 2026. Seul 24S2 se dégrade ; les quatre autres montent.
 //
 //  ─── LA RÉSERVE QUI RESTE ──────────────────────────────────────────────────
-//  · ~70 configurations testées : la meilleure est un maximum de 70 essais.
-//    Le gate longs y échappe en partie (15/15 combinaisons améliorées, et
-//    l'asymétrie long/short a une lecture économique : en crypto les baisses
-//    sont rapides, donc attendre la confirmation de la médiane pour vendre
-//    arrive après le mouvement, alors que les hausses laissent le temps).
-//  · 2026 ne fait que 8 mois de données (arrêt au 31 août 2026).
+//  · ~90 configurations testées : la meilleure est un maximum de 90 essais.
+//  · Le résultat 2026 dépend encore de DEUX MOIS. P&L net 2026 mois par mois,
+//    en % du capital à 1 % de risque par trade :
+//      janv +1,97 · févr +1,03 · mars -0,46 · avr -2,11 · mai +0,84
+//      juin +0,18 · juil -0,34 · août +2,20 · sept -0,37   = +2,94 %
+//    Retire janvier et août : -1,23 %. C'est mieux que les -2,60 % de la
+//    version précédente, mais ce n'est toujours pas positif.
+//  · La performance absolue reste faible : ~6 %/an à 1 % de risque par trade,
+//    pour 2,8 % de drawdown maximum. Le Sharpe est flatteur parce que la
+//    volatilité est basse, pas parce que le rendement est élevé.
 //
 //  ─── ÉCART ASSUMÉ AVEC LE BACKTEST PYTHON ──────────────────────────────────
 //  Ici les sorties souples partent au marché et sont donc remplies à
@@ -95,6 +109,15 @@ gateLong = input.bool(true, "Achats : exiger aussi la clôture au-dessus de la m
 gateShort = input.bool(false, "Ventes : exiger aussi la clôture sous la médiane", group=gE,
      tooltip="Désactivé par défaut : mesuré NUISIBLE. Laissé en option pour que tu " +
              "puisses le constater toi-même plutôt que me croire sur parole.")
+medVsKal = input.bool(true, "Achats : exiger la MÉDIANE sous le Kalman", group=gE,
+     tooltip="Durcit le filtre précédent. Comme med < kal < close, cette condition " +
+             "implique l'autre : c'est la structure Donchian entière qui doit être " +
+             "sous la moyenne, pas seulement le prix. +1,31 -> +1,57.")
+volLen  = input.int(20, "Volume — longueur de la moyenne (0 = filtre désactivé)", minval=0, group=gE)
+volMult = input.float(1.0, "Volume minimum = X × sa moyenne", minval=0.5, step=0.1, group=gE,
+     tooltip="Plateau de MA10 à MA50 et de 1,0 à 1,2 : Sharpe +1,47 à +1,82. " +
+             "MA50 x1,2 est le maximum des 12 essais — raison de plus de ne pas le prendre.")
+volBoth = input.bool(false, "Appliquer le filtre volume aussi aux ventes", group=gE)
 
 gS = "Risque"
 atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
@@ -152,12 +175,22 @@ sizeOk = slDist > 0.0 and not na(atrV)
 lev    = sizeOk ? math.min(maxLev, (riskPct / 100.0) / slDist) : 0.0
 qty    = lev * strategy.equity / close
 
-// Filtre médiane à l'entrée, asymétrique : voir le point 5 de l'en-tête.
+// Filtres d'entrée, asymétriques : voir les points 5 à 7 de l'en-tête.
 medOkL = not gateLong  or (not na(median) and close > median)
 medOkS = not gateShort or (not na(median) and close < median)
+// la structure Donchian elle-même du bon côté de la moyenne
+mvkL   = not medVsKal or (not na(median) and median < kalman)
 
-goLong  = useLong  and crossUp and gapOk and sizeOk and medOkL and strategy.position_size == 0
-goShort = useShort and crossDn and gapOk and sizeOk and medOkS and strategy.position_size == 0
+// confirmation par le volume de la bougie de cassure.
+// ta.sma est appelée INCONDITIONNELLEMENT : une fonction à état placée dans une
+// branche de ternaire n'est pas évaluée à chaque bougie et son état dérive.
+volMA  = ta.sma(volume, math.max(volLen, 1))
+volOk  = volLen <= 0 or (not na(volMA) and volume > volMult * volMA)
+volOkL = volOk
+volOkS = not volBoth or volOk
+
+goLong  = useLong  and crossUp and gapOk and sizeOk and medOkL and mvkL and volOkL and strategy.position_size == 0
+goShort = useShort and crossDn and gapOk and sizeOk and medOkS and volOkS and strategy.position_size == 0
 
 // ═══ ÉTAT DU TRADE ═══════════════════════════════════════════════════════════
 var float slCur     = na
@@ -239,3 +272,5 @@ plotshape(goShort, "Vente", shape.triangledown, location.abovebar, color.new(#a3
 plot(beDone and strategy.position_size != 0 ? 1 : 0, "Break-even armé", display=display.data_window)
 plot(gap, "Écart au Kalman (%)", display=display.data_window)
 plot(lev, "Levier", display=display.data_window)
+plot(volLen > 0 and not na(volMA) and volMA > 0 ? volume / volMA : na, "Volume / sa moyenne", display=display.data_window)
+plot(kalman - median, "Kalman - médiane (>0 = achat autorisé)", display=display.data_window)

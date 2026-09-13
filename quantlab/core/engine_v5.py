@@ -58,6 +58,15 @@ class CfgV5:
     # Mesuré : le filtre aide les longs (+0,86 -> +1,10) et nuit aux shorts
     # (+0,82 -> +0,48). Symétrique, les deux effets s'annulent.
     entry_median_sides: str = "both"
+    # Durcissement du filtre médiane : exiger que la MÉDIANE elle-même soit du
+    # bon côté du Kalman (med < kal pour un long). Implique entry_above_median
+    # puisque med < kal < close, mais exige en plus que la structure Donchian
+    # soit déjà sous la moyenne — pas seulement le prix.
+    entry_median_vs_kalman: bool = False
+    # Confirmation par le volume : volume de la bougie de cassure > SMA(n).
+    entry_vol_ma: int | None = None
+    entry_vol_mult: float = 1.0
+    entry_vol_sides: str = "both"             # côtés soumis au filtre volume
     # sorties
     variante_kalman_seul: bool = False
     sortie_rr: float | None = None
@@ -82,6 +91,12 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
     o = df["open"].to_numpy(float); h = df["high"].to_numpy(float)
     l = df["low"].to_numpy(float);  c = df["close"].to_numpy(float)
     n = len(df)
+    if cfg.entry_vol_ma:
+        # moyenne causale : la bougie i incluse, son volume est connu à sa clôture
+        vol = df["volume"].to_numpy(float)
+        vma = pd.Series(vol).rolling(cfg.entry_vol_ma, min_periods=cfg.entry_vol_ma).mean().to_numpy()
+    else:
+        vol = vma = None
     kal = kalman_bq(c, cfg.kalman_pn, cfg.kalman_mn)
     up, lo, med = donchian_combined(h, l, cfg.dc_length, cfg.pvt_left, cfg.pvt_right)
     atr_arr = atr(h, l, c, cfg.sl_atr_len)
@@ -109,6 +124,22 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
                         or (cfg.entry_median_sides == "long" and side > 0)
                         or (cfg.entry_median_sides == "short" and side < 0))
             if applique and ((side > 0 and c[i] <= med[i]) or (side < 0 and c[i] >= med[i])):
+                i += 1; continue
+
+        # médiane Donchian du bon côté du Kalman (durcit le filtre précédent)
+        if cfg.entry_median_vs_kalman:
+            applique = (cfg.entry_median_sides == "both"
+                        or (cfg.entry_median_sides == "long" and side > 0)
+                        or (cfg.entry_median_sides == "short" and side < 0))
+            if applique and ((side > 0 and med[i] >= kal[i]) or (side < 0 and med[i] <= kal[i])):
+                i += 1; continue
+
+        # confirmation par le volume de la bougie de cassure
+        if cfg.entry_vol_ma:
+            applique = (cfg.entry_vol_sides == "both"
+                        or (cfg.entry_vol_sides == "long" and side > 0)
+                        or (cfg.entry_vol_sides == "short" and side < 0))
+            if applique and not (np.isfinite(vma[i]) and vol[i] > cfg.entry_vol_mult * vma[i]):
                 i += 1; continue
 
         entry_idx = i + 1

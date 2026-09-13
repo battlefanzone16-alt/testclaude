@@ -33,7 +33,9 @@ autant : six bougies après un stop, le trade serait encore à −0,92R en médi
 | **+ cassure ≥ 0,75 % du Kalman** | **+0,87** | −4,7 % | oui, WR monotone 25,6 % → 33,3 % |
 | **+ break-even à +2,5 %** | **+1,17** | −4,4 % | oui, +0,90 à +1,17 de 1,5 % à 7 % |
 | activer le short | +0,50 vs long seul | — | — |
-| **+ gate médiane sur les LONGS seuls** | **+1,36** | −4,0 % | oui, 15/15 combinaisons, Δ médian +0,175 |
+| **+ gate médiane sur les LONGS seuls** | **+1,31** | −4,0 % | oui, 15/15 combinaisons, Δ médian +0,175 |
+| **+ médiane sous le Kalman (longs)** | **+1,57** | −3,1 % | oui, 9/9 combinaisons, Δ médian +0,226 |
+| **+ volume > SMA20 sur la cassure** | **+1,63** | −2,8 % | oui, +1,47 à +1,82 de MA10 à MA50 |
 
 ## Ce qui dégrade — testé, écarté
 
@@ -83,6 +85,19 @@ lentement et laissent le temps de confirmer.
   Le gate améliore **les cinq coupes** (c'est un effet relatif solide), mais le
   signe absolu tient à la présence de janvier 2026. Autrement dit : les
   améliorations sont établies, la **rentabilité hors échantillon ne l'est pas**.
+- **Le résultat 2026 tient encore à deux mois.** P&L net mois par mois, en % du
+  capital à 1 % de risque par trade (données au 12 sept. 2026) :
+
+  | config | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | total | sans janv+août |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | origine | +1,58 | −0,07 | −3,38 | −7,06 | +2,33 | −0,81 | −3,89 | +3,69 | +0,46 | −7,15 | −12,42 |
+  | + gate longs | +2,04 | +0,86 | −0,79 | −2,63 | +1,06 | −0,21 | −0,65 | +2,16 | −0,24 | +1,60 | −2,60 |
+  | + méd<Kal + volume | +1,97 | +1,03 | −0,46 | −2,11 | +0,18 | +0,18 | −0,34 | +2,20 | −0,37 | +2,94 | **−1,23** |
+
+  Chaque filtre réduit la dépendance à janvier et août, aucun ne l'élimine.
+- **La performance absolue reste faible** : ~6 %/an à 1 % de risque par trade.
+  Le Sharpe monte autant par la baisse de volatilité (9,1 % → 3,5 %/an sur
+  juin-sept.) que par la hausse du rendement.
 - La preuve hors échantillon du **break-even dépend de la coupe** : janv.-sept.
   2026 le favorise (+0,61 contre +0,49), mars-sept. 2026 le défavorise (−0,86
   contre −0,55). Prometteur, pas établi.
@@ -99,6 +114,10 @@ ENABLE_SHORT     = True
 BE_ACTIVATION_PCT= 2.5      # prometteur, à confirmer
 ENTRY_ABOVE_MEDIAN = True   # +0,19 : n'acheter qu'au-dessus de la médiane…
 ENTRY_MEDIAN_SIDES = "long" # …mais SURTOUT PAS vendre qu'en dessous (−0,34)
+ENTRY_MEDIAN_VS_KALMAN = True   # +0,26 : la médiane elle-même sous le Kalman
+ENTRY_VOL_MA     = 20       # +0,06 : cassure confirmée par le volume
+ENTRY_VOL_MULT   = 1.0      # MA50 x1,2 fait mieux (+1,82) : c'est le max de 12 essais
+ENTRY_VOL_SIDES  = "long"
 TIME_BELOW_N     = None     # mesuré nuisible
 SORTIE_PENTE     = False    # mesuré nuisible
 SORTIE_SURCHAUFFE= False    # surajustement
