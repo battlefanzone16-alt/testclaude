@@ -1,0 +1,215 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+//  KALMAN v5 — VERSION AMÉLIORÉE
+//
+//  Suivi de tendance H4 mono-actif. Contrairement au script transversal, Pine
+//  reproduit CELUI-CI fidèlement : une seule position, un seul symbole.
+//
+//  ─── CE QUI CHANGE PAR RAPPORT À LA SPEC D'ORIGINE ─────────────────────────
+//  Mesuré sur 58 alts Binance, sept. 2024 → août 2026, coûts = 0,086 % A/R +
+//  spread mesuré sur carnet × 3. Choix faits sur 2024-2025, 2026 hors échantillon.
+//
+//  1. STOP ATR au lieu de la mèche          Sharpe -0,02 → +0,64   ← le gain principal
+//     La mèche de la bougie de cassure est un niveau que le prix VIENT de
+//     visiter, et on entre à l'ouverture suivante : 33 % des stops tombaient
+//     dès la première bougie. Le mode mèche était le pire des 11 testés.
+//     Plateau large : +0,51 à +0,70 pour un multiple de 1,0 à 3,0.
+//  2. CASSURE MINIMALE du Kalman            +0,64 → +0,87
+//     Exiger que la clôture dépasse le Kalman d'au moins 0,75 % filtre les
+//     cassures d'une mèche. Win rate monotone de 25,6 % à 33,3 % sur 8 seuils.
+//  3. BREAK-EVEN à +2,5 %                   +0,87 → +1,17
+//     Le guide d'origine l'écartait sur 8 trades. Sur 7 498 trades c'est le
+//     meilleur ajout. Attention : le win rate TOMBE à ~21 % (une sortie au
+//     point mort compte comme perdante après frais) alors que le R moyen monte.
+//  4. SHORT ACTIVÉ                          long seul = -0,52, long+short = -0,02
+//
+//  ─── CE QUI A ÉTÉ MESURÉ NUISIBLE ET RETIRÉ ────────────────────────────────
+//  TIME_BELOW_N=1 (-0,21, la pire variante) · stratagème pente (ampute la queue
+//  droite : trades >+3R de 5,0 % à 2,0 %) · stratagème surchauffe (améliore en
+//  échantillon, dégrade hors échantillon) · TP fixe à +2R ou +3R (met la queue
+//  droite à ZÉRO). Aucun n'est implémenté ici — volontairement.
+//
+//  ─── DEUX RÉSERVES HONNÊTES ────────────────────────────────────────────────
+//  · ~55 configurations testées : la meilleure est un maximum de 55 essais.
+//  · Le 1er semestre 2026, seul segment vraiment hors échantillon, reste
+//    NÉGATIF (-0,55 contre -2,11 pour la spec d'origine). On réduit la casse,
+//    on ne l'inverse pas. Mesuré ailleurs : le suivi de tendance crypto casse
+//    à partir de 2025.
+//
+//  ─── ÉCART ASSUMÉ AVEC LE BACKTEST PYTHON ──────────────────────────────────
+//  Ici les sorties souples partent au marché et sont donc remplies à
+//  l'OUVERTURE de la bougie suivante ; le backtest Python sortait à la clôture
+//  de la bougie de signal. Une bougie de décalage, dans le sens conservateur.
+//  Le stop et le break-even, eux, sont bien vérifiés en intrabar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+strategy("Kalman v5 amélioré", shorttitle="KALMAN-V5+",
+     overlay                 = true,
+     initial_capital         = 10000,
+     default_qty_type        = strategy.cash,
+     default_qty_value       = 0,
+     commission_type         = strategy.commission.percent,
+     commission_value        = 0.084,
+     pyramiding              = 0,
+     calc_on_every_tick      = false,
+     process_orders_on_close = false)
+
+// ═══ PARAMÈTRES ══════════════════════════════════════════════════════════════
+gI = "Indicateurs"
+pn      = input.float(0.001, "Kalman — bruit de processus", step=0.0005, group=gI)
+mn      = input.float(1.0,   "Kalman — bruit de mesure",    step=0.1,    group=gI)
+dcLen   = input.int(20, "Donchian — longueur", minval=5, group=gI)
+pvtL    = input.int(2,  "Pivot gauche",  minval=1, group=gI)
+pvtR    = input.int(4,  "Pivot droite",  minval=1, group=gI,
+     tooltip="Un pivot n'est CONNU que pvtR bougies après. ta.pivothigh respecte " +
+             "ce retard : aucune information future n'est utilisée.")
+
+gE = "Entrées"
+useLong  = input.bool(true, "Autoriser les achats", group=gE)
+useShort = input.bool(true, "Autoriser les ventes", group=gE,
+     tooltip="Long seul donne -0,52 de Sharpe contre -0,02 en long+short. " +
+             "Le défaut du guide d'origine jetait la moitié du signal.")
+minBreak = input.float(0.75, "Cassure minimale du Kalman (%)", minval=0.0, step=0.25, group=gE,
+     tooltip="Exiger que la clôture dépasse le Kalman d'au moins X %. " +
+             "Plateau : le win rate monte de 25,6 % à 33,3 % de 0 % à 3 %.")
+maxBreak = input.float(0.0, "Écart maximal au Kalman (%, 0 = désactivé)", minval=0.0, step=1.0, group=gE)
+
+gS = "Risque"
+atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
+atrMult = input.float(1.5, "Stop = X × ATR", minval=0.25, step=0.25, group=gS,
+     tooltip="Plateau mesuré de 1,0 à 3,0 (Sharpe +0,51 à +0,70). " +
+             "Le mode mèche d'origine donnait -0,02.")
+bePct   = input.float(2.5, "Break-even après +X % (0 = désactivé)", minval=0.0, step=0.5, group=gS,
+     tooltip="Plateau de 1,5 % à 7 %. Fait CHUTER le win rate à ~21 % tout en " +
+             "montant le R moyen : une sortie au point mort est perdante après frais.")
+riskPct = input.float(1.0, "Risque par trade (% du capital)", minval=0.1, step=0.1, group=gS)
+maxLev  = input.float(3.0, "Levier maximum", minval=1.0, step=0.5, group=gS)
+
+// ═══ KALMAN (© BackQuant) ════════════════════════════════════════════════════
+// predict : P += PN ; update : K = P/(P+MN) ; x += K*(z-x) ; P *= (1-K)
+// Gain stationnaire ≈ 0,031 pour PN=0,001 et MN=1 → équivalent d'une EMA-63.
+var float kx = na
+var float kP = 1.0
+if na(kx)
+    kx := close
+else
+    kP := kP + pn
+    kK  = kP / (kP + mn)
+    kx := kx + kK * (close - kx)
+    kP := (1.0 - kK) * kP
+kalman = kx
+
+// ═══ DONCHIAN COMBINÉ (© HeWhoMustNotBeNamed) ════════════════════════════════
+// ta.pivothigh ne renvoie une valeur qu'une fois le pivot CONFIRMÉ, donc avec
+// pvtR bougies de retard. On conserve le dernier pivot connu (forward-fill).
+ph = ta.pivothigh(high, pvtL, pvtR)
+pl = ta.pivotlow(low,  pvtL, pvtR)
+var float lastPH = na
+var float lastPL = na
+if not na(ph)
+    lastPH := ph
+if not na(pl)
+    lastPL := pl
+
+hiC = ta.highest(high, dcLen)
+loC = ta.lowest(low,  dcLen)
+medC = (hiC + loC) / 2.0
+medP = (lastPH + lastPL) / 2.0
+median = na(medP) ? medC : (medP + medC) / 2.0
+
+// ═══ SIGNAUX ═════════════════════════════════════════════════════════════════
+crossUp = close > kalman and close[1] <= kalman[1]
+crossDn = close < kalman and close[1] >= kalman[1]
+gap     = math.abs(close - kalman) / kalman * 100.0
+gapOk   = gap >= minBreak and (maxBreak <= 0.0 or gap <= maxBreak)
+
+atrV = ta.atr(atrLen)
+// Distance de stop en fraction du prix — sert au dimensionnement.
+slDist = atrV / close * atrMult
+sizeOk = slDist > 0.0 and not na(atrV)
+lev    = sizeOk ? math.min(maxLev, (riskPct / 100.0) / slDist) : 0.0
+qty    = lev * strategy.equity / close
+
+goLong  = useLong  and crossUp and gapOk and sizeOk and strategy.position_size == 0
+goShort = useShort and crossDn and gapOk and sizeOk and strategy.position_size == 0
+
+// ═══ ÉTAT DU TRADE ═══════════════════════════════════════════════════════════
+var float slCur     = na
+var bool  beDone    = false
+var bool  phaseMed  = false     // bascule irréversible : phase Kalman → phase médiane
+var int   dir       = 0
+// ATR et phase sont GELÉS sur la bougie de signal : l'ordre part au marché et
+// n'est rempli qu'à l'ouverture suivante. C'est ce prix de remplissage qui
+// ancre le stop, exactement comme dans le backtest Python.
+var float pendAtr   = na
+var bool  pendPhase = false
+
+if goLong
+    strategy.entry("L", strategy.long, qty=qty)
+    pendAtr   := atrV
+    pendPhase := close > median
+if goShort
+    strategy.entry("S", strategy.short, qty=qty)
+    pendAtr   := atrV
+    pendPhase := close < median
+
+// L'ordre vient d'être rempli : on ancre le stop sur le prix d'entrée RÉEL.
+// Pine vérifie un stop posé sur la bougie d'entrée contre cette bougie même,
+// donc aucune bougie n'est laissée sans protection.
+justOpened = strategy.position_size != 0 and (na(strategy.position_size[1]) or strategy.position_size[1] == 0)
+if justOpened
+    dir      := strategy.position_size > 0 ? 1 : -1
+    slCur    := strategy.position_avg_price - dir * atrMult * pendAtr
+    beDone   := false
+    phaseMed := pendPhase
+
+inPos = strategy.position_size != 0
+if inPos
+    ep = strategy.position_avg_price
+    // armement du break-even, sur l'extrême intrabar de la bougie
+    if bePct > 0.0 and not beDone
+        ext = dir > 0 ? high : low
+        if dir * (ext - ep) / ep * 100.0 >= bePct
+            slCur  := ep
+            beDone := true
+    // bascule de phase : une seule fois, quand la clôture franchit la médiane
+    if not phaseMed and ((dir > 0 and close > median) or (dir < 0 and close < median))
+        phaseMed := true
+else
+    dir   := 0
+    slCur := na
+
+// ═══ SORTIES ═════════════════════════════════════════════════════════════════
+// Le stop (et le break-even) sont confiés au moteur : vérifiés en intrabar,
+// ils priment donc sur les sorties souples décidées à la clôture.
+if strategy.position_size > 0 and not na(slCur)
+    strategy.exit("L-stop", from_entry="L", stop=slCur)
+if strategy.position_size < 0 and not na(slCur)
+    strategy.exit("S-stop", from_entry="S", stop=slCur)
+
+// Sortie souple à deux phases. Tant que le prix n'a pas franchi la médiane on
+// surveille le Kalman ; une fois franchie, la médiane sert de trailing.
+softExit = false
+if strategy.position_size > 0
+    softExit := phaseMed ? close < median : close < kalman
+if strategy.position_size < 0
+    softExit := phaseMed ? close > median : close > kalman
+if softExit
+    strategy.close_all(comment = phaseMed ? "clot<médiane" : "clot<Kalman")
+
+// ═══ VISUEL ══════════════════════════════════════════════════════════════════
+colK = #36617f
+colM = #8a6a24
+plot(kalman, "Kalman", color=color.new(colK, 0), linewidth=2)
+plot(median, "Médiane Donchian", color=color.new(colM, 20), linewidth=1)
+plot(strategy.position_size != 0 ? slCur : na, "Stop", color=color.new(#a34a3a, 0),
+     style=plot.style_linebr, linewidth=1)
+
+// Le fond signale la phase : fragile tant que la médiane n'est pas franchie.
+bgcolor(strategy.position_size != 0 ? (phaseMed ? color.new(#3f6e51, 90) : color.new(#8a6a24, 92)) : na,
+     title="Phase du trade")
+plotshape(goLong,  "Achat", shape.triangleup,   location.belowbar, color.new(#3f6e51, 0), size=size.tiny)
+plotshape(goShort, "Vente", shape.triangledown, location.abovebar, color.new(#a34a3a, 0), size=size.tiny)
+plot(beDone and strategy.position_size != 0 ? 1 : 0, "Break-even armé", display=display.data_window)
+plot(gap, "Écart au Kalman (%)", display=display.data_window)
+plot(lev, "Levier", display=display.data_window)
