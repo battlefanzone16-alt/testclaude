@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from .indicators import kalman_bq, donchian_combined
+from .indicators import kalman_bq, donchian_combined, atr
 
 
 @dataclass
@@ -38,6 +38,17 @@ class CfgV5:
     enable_short: bool = False
     # stop dur
     sl_donchian: bool = False
+    # modes de stop alternatifs. "wick" = mèche de la bougie de cassure (spec v5).
+    #   "buffer"  : mèche élargie de sl_buffer (le prix vient de visiter ce niveau,
+    #               33 % des stops tombaient dès la 1re bougie)
+    #   "atr"     : entrée -/+ sl_atr_mult * ATR(sl_atr_len)
+    #   "swing"   : plus bas/haut des sl_swing_n dernières bougies
+    #   "none"    : aucun stop dur, la sortie souple gère seule
+    sl_mode: str = "wick"
+    sl_buffer: float = 0.005
+    sl_atr_mult: float = 2.0
+    sl_atr_len: int = 14
+    sl_swing_n: int = 5
     max_sl_dist: float | None = None
     max_dist_kalman: float | None = None
     min_dist_kalman: float | None = None      # cassure trop timide -> on saute
@@ -69,6 +80,7 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
     n = len(df)
     kal = kalman_bq(c, cfg.kalman_pn, cfg.kalman_mn)
     up, lo, med = donchian_combined(h, l, cfg.dc_length, cfg.pvt_left, cfg.pvt_right)
+    atr_arr = atr(h, l, c, cfg.sl_atr_len)
 
     prev_c = np.concatenate(([np.nan], c[:-1]))
     prev_k = np.concatenate(([np.nan], kal[:-1]))
@@ -97,14 +109,31 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
         if not np.isfinite(entry) or entry <= 0:
             i += 1; continue
 
-        # stop dur : mèche de la bougie de cassure, ou borne Donchian
-        if cfg.sl_donchian:
+        # stop dur
+        if cfg.sl_donchian or cfg.sl_mode == "donchian":
             sl = lo[i] if side > 0 else up[i]
+        elif cfg.sl_mode == "buffer":
+            base = l[i] if side > 0 else h[i]
+            sl = base * (1.0 - side * cfg.sl_buffer)
+        elif cfg.sl_mode == "atr":
+            av = atr_arr[i]
+            sl = (entry - side * cfg.sl_atr_mult * av) if np.isfinite(av) else np.nan
+        elif cfg.sl_mode == "swing":
+            k0 = max(0, i - cfg.sl_swing_n + 1)
+            sl = l[k0:i + 1].min() if side > 0 else h[k0:i + 1].max()
+        elif cfg.sl_mode == "none":
+            sl = 0.0 if side > 0 else float("inf")
         else:
             sl = l[i] if side > 0 else h[i]
         if not np.isfinite(sl):
             i += 1; continue
-        sl_dist = side * (entry - sl) / entry
+        if cfg.sl_mode == "none":
+            av = atr_arr[i]
+            if not np.isfinite(av) or av <= 0:
+                i += 1; continue
+            sl_dist = 2.0 * av / entry        # sizing sur l'ATR, faute de stop
+        else:
+            sl_dist = side * (entry - sl) / entry
         if not (sl_dist > 0):
             i += 1; continue
         if cfg.max_sl_dist is not None and sl_dist > cfg.max_sl_dist:
