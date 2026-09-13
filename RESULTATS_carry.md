@@ -47,6 +47,24 @@ La base est réellement valorisée sur les deux jambes ; elle coûte **−0,26 p
 
 Rotation ≈ 16 %/semaine sur le top 10.
 
+### CORRECTION — les frais spot
+
+Premier chiffrage fautif de ma part : j'avais appliqué **0,045 % aux deux
+jambes**, alors que le taker **spot** Binance est à **0,10 %** (0,075 % avec BNB).
+Le perp est bien à 0,045 %. Chiffres corrigés, top 10, spread ×3 :
+
+| grille de frais | net/an | Sharpe | MDD |
+|---|---|---|---|
+| ~~0,045 / 0,045 (ce que j'avais mis)~~ | ~~+5,72 %~~ | ~~3,14~~ | ~~−1,53 %~~ |
+| **base : spot 0,10 % / perp 0,045 %** | **+4,81 %** | **2,61** | −1,88 % |
+| avec BNB : 0,075 % / 0,036 % | +5,37 % | 2,94 | −1,67 % |
+| VIP 1 : 0,09 % / 0,04 % | +5,06 % | 2,75 | −1,79 % |
+| **maker des deux côtés : 0,02 % / 0,018 %** | **+7,97 %** | **4,55** | −1,23 % |
+
+Environ 0,9 point de rendement annuel en moins que ce que j'avais annoncé. La
+stratégie tient, mais **passer en maker vaut 3 points de rendement** — c'est le
+levier d'exécution le plus rentable du dispositif.
+
 ### Résistance aux coûts (top 10)
 
 | hypothèse | net/an | Sharpe |
@@ -81,6 +99,45 @@ Corrélation hebdomadaire des deux : **−0,185**.
 
 Le mélange bat les deux composants en Sharpe. Année par année : +0,99 %,
 +5,28 %, +11,07 %, +3,40 %, +2,57 % — cinq années positives.
+
+## La jambe spot n'est pas un accessoire, c'est LA stratégie
+
+Contrainte pratique réelle : Hyperliquid et Lighter n'ont presque pas de spot.
+Peut-on faire le carry entre perps seulement — short les plus hauts funding,
+long les plus bas, dollar-neutre ? **Non.** Mesuré :
+
+| variante sans spot | net/an | vol | Sharpe | MDD |
+|---|---|---|---|---|
+| perp/perp top-bottom 3 | −3,67 % | 77,8 % | −0,05 | −95,0 % |
+| perp/perp top-bottom 5 | +1,96 % | 54,3 % | +0,04 | −72,9 % |
+| perp/perp top-bottom 10 | +3,17 % | 34,8 % | +0,09 | −46,0 % |
+
+Décomposition (N=5), et c'est limpide :
+
+| | rendement | volatilité |
+|---|---|---|
+| funding encaissé | **+22,64 %/an** | 6,2 % |
+| jambe PRIX (non couverte) | **−18,23 %/an** | **53,4 %** |
+
+**Le bruit de prix est 9× celui du funding.** Sans spot, on ne couvre rien : on
+prend un pari relatif massif entre deux paniers de tokens pour récolter une
+prime minuscule. Le funding est pourtant bien là (+22,6 %/an sur l'écart) — c'est
+la couverture qui manque, et c'est elle qui fabrique le Sharpe de 2,6.
+
+### Où l'exécuter, alors
+
+- **Binance, OKX, Bybit** : spot et perp profonds, et surtout marge de
+  portefeuille — le spot sert de collatéral au short perp, ce qui traite le
+  risque de marge décrit plus bas. C'est le montage standard.
+- **Exécution répartie** : spot sur Binance, short perp sur Hyperliquid pour
+  profiter des frais bas. Faisable, mais le capital est scindé entre deux
+  plateformes **sans marge croisée** — donc le risque de marge, qui est le vrai
+  risque ici, devient nettement pire. À ne faire qu'avec un coussin large.
+- **Hyperliquid seul** : le spot HIP-1 existe mais reste trop mince. Non.
+
+Le funding d'Hyperliquid n'a pas pu être mesuré ici : `api.hyperliquid.xyz` est
+bloqué par la politique réseau de l'environnement (403 sur le CONNECT). Il
+faudrait l'autoriser pour comparer les primes entre plateformes.
 
 ## Ce qui n'est PAS dans ces chiffres
 
