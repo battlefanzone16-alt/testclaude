@@ -139,6 +139,70 @@ Le funding d'Hyperliquid n'a pas pu être mesuré ici : `api.hyperliquid.xyz` es
 bloqué par la politique réseau de l'environnement (403 sur le CONNECT). Il
 faudrait l'autoriser pour comparer les primes entre plateformes.
 
+## Version 100 % on-chain (aucun CEX)
+
+Contrainte : pas d'accès à un CEX. Le spot n'a pas besoin d'être sur un CEX —
+il est abondant on-chain (Jupiter, Uniswap, Aerodrome…). Le problème devient
+purement un problème de **coût de rotation**, et la parade est de **tourner
+moins**.
+
+Coût A/R = rotation complète d'une ligne : achat spot + vente spot + open/close
+perp + slippage + gas. Top 10, hystérésis top 20.
+
+| coût A/R | hebdo | 2 semaines | **mensuel** | trimestriel |
+|---|---|---|---|---|
+| 0,10 % | +8,87 % (S 5,0) | +8,30 % (S 3,7) | +8,10 % (S 3,2) | +4,02 % (S 0,6) |
+| 0,40 % | +8,24 % (S 4,6) | +7,76 % (S 3,4) | **+7,62 % (S 3,0)** | +3,69 % (S 0,6) |
+| 0,60 % | +7,81 % (S 4,3) | +7,40 % (S 3,3) | +7,30 % (S 2,8) | +3,46 % (S 0,5) |
+| 1,00 % | +6,96 % (S 3,6) | +6,68 % (S 2,9) | +6,66 % (S 2,6) | +3,01 % (S 0,5) |
+| 1,50 % | +5,90 % (S 2,9) | +5,78 % (S 2,4) | +5,85 % (S 2,2) | +2,44 % (S 0,4) |
+
+**En mensuel, le coût devient presque indolore** : de 0,10 % à 1,50 % d'A/R, on
+passe seulement de +8,10 % à +5,85 %. C'est la rotation faible qui protège.
+Le trimestriel, lui, est trop lent : la persistance du funding s'épuise.
+
+L'hystérésis vaut à elle seule 1 point de rendement (mensuel, coût 0,40 %) :
+
+| on garde tant qu'on est dans le… | net/an | Sharpe | MDD |
+|---|---|---|---|
+| top 10 (pas d'hystérésis) | +6,52 % | 2,67 | −1,80 % |
+| **top 20** | **+7,62 %** | 2,98 | −1,01 % |
+| top 30 | +7,53 % | **3,19** | −0,88 % |
+
+### La configuration retenue pour un accès DEX seulement
+
+Mensuel, top 10 par funding moyen des 30 derniers jours, gardé tant qu'il reste
+dans le top 20, spot on-chain, short perp en maker sur un perp DEX.
+
+| hypothèse de coût A/R | net/an | vol | Sharpe | MDD |
+|---|---|---|---|---|
+| 0,40 % — majors, exécution soignée | **+7,62 %** | 2,56 % | 2,98 | −1,01 % |
+| 0,60 % — réaliste | +7,30 % | 2,57 % | 2,84 | −1,34 % |
+| 1,00 % — pessimiste | +6,66 % | 2,61 % | 2,55 | −1,99 % |
+
+Année par année (hypothèse réaliste) : +0,33 %, +7,88 %, +15,47 %, +5,39 %,
++4,38 %. Aucune année négative.
+
+**Cette version bat le montage CEX taker** (+7,30 % contre +4,81 %), simplement
+parce que la rotation mensuelle coûte 4× moins que l'hebdomadaire. La contrainte
+a poussé vers un meilleur design.
+
+### Ce qui se paie en échange, et il faut le compter
+
+1. **La marge n'est pas croisée.** Du spot sur Jupiter ne collatéralise pas un
+   short sur Hyperliquid. Il faut de l'USDC séparé en marge : à 1 % de spot +
+   0,3 % de marge, le capital déployé est ~1,3× et les +7,3 % deviennent
+   **~5,6 % sur capital**. C'est le vrai coût de l'absence de CEX.
+2. **Le funding mesuré est celui de Binance.** Celui d'Hyperliquid ou Lighter
+   peut différer — plausiblement plus élevé (davantage de retail à levier),
+   mais non vérifié : `api.hyperliquid.xyz` est bloqué par la politique réseau
+   de l'environnement.
+3. **L'univers réel est plus étroit.** Les 30 perps Binance les plus liquides ne
+   sont pas tous listés sur un perp DEX avec du spot on-chain profond en face.
+   Compter plutôt 15 à 25 noms exploitables, ce qui rapproche du cas N=5-10.
+4. **Risque de plateforme et de contrat.** Un perp DEX est un point de défaillance
+   unique, ce qu'un compte CEX n'est pas au même titre.
+
 ## Ce qui n'est PAS dans ces chiffres
 
 1. **Le risque de marge.** C'est le vrai risque du cash-and-carry : il n'est pas
