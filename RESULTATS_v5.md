@@ -68,6 +68,63 @@ baisses sont violentes et rapides, donc attendre la confirmation de la médiane
 pour vendre revient à vendre après le mouvement ; les hausses grimpent plus
 lentement et laissent le temps de confirmer.
 
+## Les pentes : l'effet est réel, le sens est inversé
+
+Hypothèse testée : une cassure sur une médiane Donchian fortement pentue serait
+plus fiable qu'une cassure sur une médiane plate. Pente mesurée sur 20 bougies,
+normalisée par l'ATR, à la bougie de signal. **Longs, sans aucun filtre médiane**
+(donc l'effet n'est pas un artefact des filtres déjà en place) :
+
+| pente de la médiane | trades | win | R moyen | P&L |
+|---|---|---|---|---|
+| très négative | 764 | 21,5 % | **+0,411** | +5,42 % |
+| négative | 764 | 20,3 % | +0,211 | +2,78 % |
+| plate | 763 | 16,1 % | +0,008 | +0,11 % |
+| positive | 764 | 17,8 % | −0,068 | −0,90 % |
+| très positive | 764 | 17,1 % | **−0,142** | −1,87 % |
+
+Monotone sur les cinq quintiles, et **à l'envers de l'hypothèse**. La moitié de
+l'observation est exacte — une médiane plate ou légèrement montante est bien la
+zone des faux signaux — mais le bon côté est celui des médianes qui *tombent*.
+Lecture : la partie rentable de ce système de suivi de tendance est en fait sa
+composante contrariante — on achète le retournement, pas la confirmation.
+
+Appliqué comme filtre (longs seuls, config complète) :
+
+| filtre | Sharpe | P&L 2 ans | MDD | 24S2 | 25S1 | 25S2 | 26S1 | 26S2 |
+|---|---|---|---|---|---|---|---|---|
+| aucun | +1,63 | **+12,02 %** | −2,8 % | 2,00 | 1,62 | 1,10 | 1,09 | 2,02 |
+| pente ≥ 0 (hypothèse) | +0,69 | +3,80 % | −2,7 % | −0,56 | 1,54 | 0,82 | −0,53 | 0,12 |
+| pente ≤ −0,02 (inverse) | +1,73 | +11,81 % | −2,2 % | 2,29 | 2,10 | 1,12 | 1,72 | **−1,46** |
+
+L'hypothèse telle quelle coûte les deux tiers du P&L. L'inverse monte le Sharpe
+sans rapporter un centime de plus, et fait passer juil.-sept. 2026 de +1,51 % à
+−0,49 % : il bloque 63 des 152 longs gagnants du dernier segment.
+
+Autres pentes mesurées au même endroit : la borne haute du canal et le Kalman ne
+donnent rien de monotone. **La largeur du canal, si** — et dans le sens de
+l'intuition cette fois (canal qui s'écarte = expansion de volatilité = vraie
+cassure) : R moyen +0,494 dans le quintile le plus expansif contre −0,072 dans
+le plus resserré. Comme filtre : Sharpe +1,81, Calmar 2,86, MDD −2,0 %, mais
+P&L +11,33 % contre +12,02 %.
+
+## Le point où les filtres cessent d'apporter de l'argent
+
+| étape | trades | P&L 2 ans | Sharpe |
+|---|---|---|---|
+| 1. spec d'origine | 12 874 | −0,22 % | −0,01 |
+| 2. + ATR / cassure / BE | 7 688 | +9,33 % | +1,13 |
+| 3. + gate longs | 7 159 | +10,76 % | +1,31 |
+| 4. + méd<Kal + volume | 5 852 | **+12,02 %** | +1,63 |
+| 5a. + pente inverse | 5 155 | +11,81 % | +1,73 |
+| 5b. + canal qui s'écarte | 5 015 | +11,33 % | **+1,81** |
+
+Les étapes 2 à 4 ajoutent du Sharpe **et** de l'argent. L'étape 5, dans ses deux
+variantes, ajoute du Sharpe **en retirant** de l'argent : elle coupe des trades
+et de la variance, pas des pertes. C'est le signe que le filtrage a donné ce
+qu'il avait à donner. Les deux filtres de pente sont donc livrés en option,
+désactivés par défaut.
+
 ## Le stop mèche, retesté après les filtres
 
 Sur la spec d'origine, le stop placé sous la mèche de la bougie de cassure était

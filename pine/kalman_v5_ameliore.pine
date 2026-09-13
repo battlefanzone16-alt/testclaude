@@ -35,6 +35,17 @@
 //     le point 5 et va plus loin : la structure Donchian doit déjà être sous la
 //     moyenne. Robuste : améliore 9/9 combinaisons (3 seuils × 3 Donchian),
 //     delta médian +0,226.
+//  8. PENTES — TESTÉES, LAISSÉES EN OPTION, DÉSACTIVÉES
+//     La pente de la médiane à l'entrée prédit vraiment, mais À L'ENVERS de
+//     l'intuition : R moyen +0,657 dans le quintile où la médiane tombe le plus
+//     vite, +0,003 dans celui où elle monte le plus vite (monotone sur les cinq).
+//     Exiger une médiane qui monte coûte les deux tiers du P&L (12,02 % → 3,80 %).
+//     Le filtre inverse monte le Sharpe à +1,73 sans rapporter un centime de
+//     plus (11,81 %), et fait passer juil.-sept. 2026 de +1,51 % à -0,49 %.
+//     L'EXPANSION DU CANAL, elle, va bien dans le sens de l'intuition (canal qui
+//     s'écarte = vraie cassure) : Sharpe +1,81, Calmar 2,86, MDD -2,0 % — mais
+//     P&L 11,33 % contre 12,02 %. Même conclusion : du Sharpe, pas de l'argent.
+//
 //  7. VOLUME > SMA20 SUR LA CASSURE         +1,57 → +1,63   Calmar 2,20
 //     Plateau large : de MA10 à MA50, multiplicateur 1,0 à 1,2, le Sharpe reste
 //     entre +1,47 et +1,82. MA50 ×1,2 donne le maximum (+1,82) — on garde MA20
@@ -119,6 +130,20 @@ volMult = input.float(1.0, "Volume minimum = X × sa moyenne", minval=0.5, step=
              "MA50 x1,2 est le maximum des 12 essais — raison de plus de ne pas le prendre.")
 volBoth = input.bool(false, "Appliquer le filtre volume aussi aux ventes", group=gE)
 
+// Filtres de PENTE — désactivés par défaut : ils montent le Sharpe en coupant
+// des trades, mais ne rapportent pas plus d'argent. Voir le point 8 de l'en-tête.
+gP = "Pente (optionnel — montent le Sharpe, pas le P&L)"
+useSlope = input.bool(false, "Achats : rejeter si la médiane monte", group=gP,
+     tooltip="Le contraire de l'intuition habituelle, mais c'est ce que disent les " +
+             "données : R moyen +0,657 quand la médiane tombe vite, +0,003 quand elle " +
+             "monte vite. Sharpe +1,63 -> +1,73 mais P&L 12,02 % -> 11,81 %.")
+slopeMax = input.float(-0.02, "  pente maximale de la médiane (ATR/bougie)", step=0.01, group=gP)
+useWidth = input.bool(false, "Achats : exiger un canal qui s'écarte", group=gP,
+     tooltip="Expansion de volatilité = vraie cassure. Sharpe +1,63 -> +1,81, " +
+             "Calmar 2,20 -> 2,86, MDD -2,8 % -> -2,0 %, mais P&L 12,02 % -> 11,33 %.")
+widthMin = input.float(-0.02, "  écartement minimal du canal (ATR/bougie)", step=0.01, group=gP)
+slopeLen = input.int(20, "  fenêtre de mesure des pentes (bougies)", minval=2, group=gP)
+
 gS = "Risque"
 atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
 atrMult = input.float(1.5, "Stop = X × ATR", minval=0.25, step=0.25, group=gS,
@@ -181,6 +206,14 @@ medOkS = not gateShort or (not na(median) and close < median)
 // la structure Donchian elle-même du bon côté de la moyenne
 mvkL   = not medVsKal or (not na(median) and median < kalman)
 
+// pentes sur slopeLen bougies, normalisées par l'ATR pour être comparables
+// d'un token à l'autre. Calculées inconditionnellement (fonctions à état).
+atrP    = atrV > 0 ? atrV : na
+pMed    = (median - median[slopeLen]) / slopeLen / atrP
+pLarg   = ((hiC - loC) - (hiC[slopeLen] - loC[slopeLen])) / slopeLen / atrP
+slopeOk = not useSlope or (not na(pMed)  and pMed  <= slopeMax)
+widthOk = not useWidth or (not na(pLarg) and pLarg >= widthMin)
+
 // confirmation par le volume de la bougie de cassure.
 // ta.sma est appelée INCONDITIONNELLEMENT : une fonction à état placée dans une
 // branche de ternaire n'est pas évaluée à chaque bougie et son état dérive.
@@ -189,7 +222,7 @@ volOk  = volLen <= 0 or (not na(volMA) and volume > volMult * volMA)
 volOkL = volOk
 volOkS = not volBoth or volOk
 
-goLong  = useLong  and crossUp and gapOk and sizeOk and medOkL and mvkL and volOkL and strategy.position_size == 0
+goLong  = useLong  and crossUp and gapOk and sizeOk and medOkL and mvkL and volOkL and slopeOk and widthOk and strategy.position_size == 0
 goShort = useShort and crossDn and gapOk and sizeOk and medOkS and volOkS and strategy.position_size == 0
 
 // ═══ ÉTAT DU TRADE ═══════════════════════════════════════════════════════════
@@ -274,3 +307,5 @@ plot(gap, "Écart au Kalman (%)", display=display.data_window)
 plot(lev, "Levier", display=display.data_window)
 plot(volLen > 0 and not na(volMA) and volMA > 0 ? volume / volMA : na, "Volume / sa moyenne", display=display.data_window)
 plot(kalman - median, "Kalman - médiane (>0 = achat autorisé)", display=display.data_window)
+plot(pMed,  "Pente de la médiane (ATR/bougie)", display=display.data_window)
+plot(pLarg, "Écartement du canal (ATR/bougie)", display=display.data_window)

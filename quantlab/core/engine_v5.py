@@ -67,6 +67,19 @@ class CfgV5:
     entry_vol_ma: int | None = None
     entry_vol_mult: float = 1.0
     entry_vol_sides: str = "both"             # côtés soumis au filtre volume
+    # Pente de la médiane Donchian à la bougie de signal, en ATR par bougie et
+    # signée par le sens du trade (positive = médiane qui va dans le sens du
+    # trade). Bornes inclusives, None = pas de borne.
+    entry_slope_n: int | None = None
+    entry_slope_min: float | None = None
+    entry_slope_max: float | None = None
+    entry_slope_sides: str = "both"
+    # Pente de la LARGEUR du canal Donchian (haut - bas), en ATR par bougie,
+    # NON signée : un canal qui s'écarte est une expansion de volatilité, quel
+    # que soit le sens du trade.
+    entry_width_n: int | None = None
+    entry_width_min: float | None = None
+    entry_width_sides: str = "both"
     # sorties
     variante_kalman_seul: bool = False
     sortie_rr: float | None = None
@@ -133,6 +146,36 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
                         or (cfg.entry_median_sides == "short" and side < 0))
             if applique and ((side > 0 and med[i] >= kal[i]) or (side < 0 and med[i] <= kal[i])):
                 i += 1; continue
+
+        # pente de la médiane Donchian, normalisée par l'ATR
+        if cfg.entry_slope_n:
+            applique = (cfg.entry_slope_sides == "both"
+                        or (cfg.entry_slope_sides == "long" and side > 0)
+                        or (cfg.entry_slope_sides == "short" and side < 0))
+            if applique:
+                j0 = i - cfg.entry_slope_n
+                av_i = atr_arr[i]
+                if j0 < 0 or not np.isfinite(med[j0]) or not (av_i > 0):
+                    i += 1; continue
+                pente = side * (med[i] - med[j0]) / cfg.entry_slope_n / av_i
+                if cfg.entry_slope_min is not None and pente < cfg.entry_slope_min:
+                    i += 1; continue
+                if cfg.entry_slope_max is not None and pente > cfg.entry_slope_max:
+                    i += 1; continue
+
+        # expansion du canal Donchian
+        if cfg.entry_width_n:
+            applique = (cfg.entry_width_sides == "both"
+                        or (cfg.entry_width_sides == "long" and side > 0)
+                        or (cfg.entry_width_sides == "short" and side < 0))
+            if applique:
+                j0 = i - cfg.entry_width_n
+                av_i = atr_arr[i]
+                if j0 < 0 or not np.isfinite(up[j0]) or not np.isfinite(lo[j0]) or not (av_i > 0):
+                    i += 1; continue
+                dw = ((up[i] - lo[i]) - (up[j0] - lo[j0])) / cfg.entry_width_n / av_i
+                if cfg.entry_width_min is not None and dw < cfg.entry_width_min:
+                    i += 1; continue
 
         # confirmation par le volume de la bougie de cassure
         if cfg.entry_vol_ma:
