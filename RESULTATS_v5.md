@@ -164,6 +164,56 @@ Le multiple ATR est bien un plateau et non un pic : ×1,25 → +1,635, ×1,50 �
 décroît de façon monotone avec le multiple (+15,97 % à ×0,75, +5,52 % à ×3,0)
 pendant que le drawdown décroît aussi : le Sharpe arbitre entre les deux.
 
+## Config retenue et pourquoi (arbitrage Sharpe / P&L)
+
+Pour comparer un Sharpe à un P&L il faut les rendre commensurables : on ramène
+chaque variante à **10 % de volatilité annuelle**, le rendement devient alors
+proportionnel au Sharpe.
+
+| config | Sharpe | P&L 2 ans | vol | MDD | Calmar | rendt à 10 % de vol |
+|---|---|---|---|---|---|---|
+| #4 ATR ×1,00 | 1,474 | 16,06 % | 5,05 % | −3,53 % | 2,15 | 14,74 % |
+| **#4 ATR ×1,25** | **1,633** | **14,98 %** | 4,26 % | −3,01 % | **2,36** | 16,33 % |
+| #4 ATR ×1,50 | 1,628 | 12,63 % | 3,63 % | −2,78 % | 2,16 | 16,28 % |
+| #4 ATR ×1,75 | 1,522 | 10,10 % | 3,14 % | −2,50 % | 1,94 | 15,22 % |
+| #5b canal ×1,50 | **1,804** | 11,88 % | 3,08 % | −2,02 % | 2,81 | **18,04 %** |
+| #5a pente ×1,25 | 1,754 | 14,95 % | 3,95 % | −2,47 % | 2,87 | 17,54 % |
+
+**Retenu : ATR ×1,25, filtres de pente désactivés.** Motifs :
+
+- ×1,25 **domine** ×1,50 sur les deux axes (Sharpe 1,633 vs 1,628, P&L 14,98 %
+  vs 12,63 %) et se trouve au centre d'un plateau ×1,0–×1,75.
+- Le Sharpe maximum (#5b, 1,804) rend 18,0 %/an à volatilité égale contre 16,3 %
+  — un écart dans le bruit — mais fait tomber 25S2 de 1,05 à 0,77 et 26S1 de
+  1,31 à 0,88, et coûte 3,1 points de P&L. Régularité contre un gain non établi.
+- #5a a le meilleur 26S1 (1,85) mais un 26S2 à **−2,80** : le segment le plus
+  récent, donc le plus informatif, est celui qu'il casse.
+
+Sharpe par semestre de la config retenue : **1,84 · 1,82 · 1,05 · 1,31 · 1,50**
+— les cinq positifs. Douze derniers mois glissants : Sharpe +1,63, P&L +6,59 %.
+
+## Le chiffre qui décide : Sharpe déflaté
+
+Sharpe 1,633 sur deux ans. **Erreur-type 1,070** → IC95 [−0,47 ; 3,73], t = 1,53.
+Pas significatif à 95 %, avant toute correction pour essais multiples.
+
+Et il y a eu ~115 configurations testées. Le maximum attendu de 115 essais de
+**pur bruit** sur un échantillon de cette longueur vaut **2,76**, soit davantage
+que le 1,633 obtenu. Sharpe déflaté (Bailey & López de Prado) : **0,146**.
+
+Nuances dans les deux sens, à ne pas escamoter :
+- Les 115 essais ne sont pas indépendants (beaucoup de variantes imbriquées),
+  donc le nombre effectif d'essais est bien inférieur et le test est sévère.
+- En face, plusieurs améliorations ont passé des contrôles que le Sharpe déflaté
+  ne voit pas : 15/15 et 9/9 combinaisons de paramètres améliorées, gradients
+  monotones sur cinq quintiles, cinq semestres positifs.
+- Mais aucune de ces nuances ne renverse le constat : deux ans ne suffisent pas.
+
+Ce qu'il faudrait pour trancher : **~9 ans d'historique**, ou **~18 mois de
+forward test** à ce Sharpe (t = Sharpe × √T, donc T = (2/1,633)² ≈ 1,5 an).
+Le forward test est la seule voie qui échappe au biais de sélection, puisqu'il
+porte sur des données qui n'existent pas encore.
+
 ## Réserves
 
 - **~70 configurations testées.** La meilleure est un maximum de 70 essais.

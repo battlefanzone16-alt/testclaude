@@ -9,6 +9,16 @@
 //  Mesuré sur 58 alts Binance, sept. 2024 → août 2026, coûts = 0,086 % A/R +
 //  spread mesuré sur carnet × 3. Choix faits sur 2024-2025, 2026 hors échantillon.
 //
+//  ─── RÉGLAGES PAR DÉFAUT = LE MEILLEUR COMPROMIS SHARPE / P&L MESURÉ ───────
+//  ATR ×1,25 · cassure ≥ 0,75 % · BE +2,5 % · gate médiane, médiane < Kalman et
+//  volume > SMA20 sur les ACHATS seuls · filtres de pente désactivés.
+//    Sharpe 1,633 · P&L 14,98 % sur 2 ans · vol 4,3 %/an · MDD -3,0 % · Calmar 2,36
+//    Les cinq semestres sont positifs : 1,84 · 1,82 · 1,05 · 1,31 · 1,50
+//  Pourquoi pas le Sharpe maximum (1,80, en activant le filtre de canal) : à
+//  volatilité égale il rend 18,0 %/an contre 16,3 %, mais il fait tomber 25S2 à
+//  0,77 et 26S1 à 0,88, et coûte 3,1 points de P&L. Le gain est dans le bruit,
+//  la perte de régularité ne l'est pas.
+//
 //  1. STOP ATR au lieu de la mèche          Sharpe -0,02 → +0,64   ← le gain principal
 //     La mèche de la bougie de cassure est un niveau que le prix VIENT de
 //     visiter, et on entre à l'ouverture suivante : 33 % des stops tombaient
@@ -64,6 +74,18 @@
 //    + gate longs      2,57  1,17  0,93 |+0,19  1,58    +1,31  -4,0%   1,37
 //    + méd<Kal + vol   2,00  1,62  1,10 |+1,09  2,02    +1,63  -2,8%   2,20
 //  Données au 12 sept. 2026. Seul 24S2 se dégrade ; les quatre autres montent.
+//
+//  ─── LE CHIFFRE QUI DÉCIDE : SHARPE DÉFLATÉ ────────────────────────────────
+//  Sharpe 1,633 sur 2 ans, mais l'ERREUR-TYPE est de 1,070 : IC95 [-0,47 ; 3,73],
+//  t = 1,53. Pas significatif à 95 %, AVANT même toute correction.
+//  Et ~115 configurations ont été testées. Le maximum attendu de 115 essais de
+//  PUR BRUIT sur cette longueur d'échantillon est de 2,76 — au-dessus de 1,633.
+//  Sharpe déflaté (Bailey & López de Prado) : 0,146.
+//  Autrement dit : ce résultat est compatible avec le meilleur de 115 tirages
+//  au sort. Les 115 essais ne sont pas indépendants (beaucoup de variantes
+//  imbriquées), donc le test est sévère — mais pas au point d'inverser sa
+//  conclusion. Il faudrait ~9 ans de données pour trancher sur l'historique,
+//  ou ~18 mois de FORWARD TEST à ce Sharpe.
 //
 //  ─── LA RÉSERVE QUI RESTE ──────────────────────────────────────────────────
 //  · ~90 configurations testées : la meilleure est un maximum de 90 essais.
@@ -146,9 +168,9 @@ slopeLen = input.int(20, "  fenêtre de mesure des pentes (bougies)", minval=2, 
 
 gS = "Risque"
 atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
-atrMult = input.float(1.5, "Stop = X × ATR", minval=0.25, step=0.25, group=gS,
-     tooltip="Plateau mesuré de 1,0 à 3,0 (Sharpe +0,51 à +0,70). " +
-             "Le mode mèche d'origine donnait -0,02.")
+atrMult = input.float(1.25, "Stop = X × ATR", minval=0.25, step=0.25, group=gS,
+     tooltip="x1,25 domine x1,50 sur les deux axes : Sharpe 1,633 contre 1,628 ET " +
+             "P&L 14,98 % contre 12,63 %. Plateau de x1,0 à x1,75 (Sharpe 1,47 à 1,63).")
 bePct   = input.float(2.5, "Break-even après +X % (0 = désactivé)", minval=0.0, step=0.5, group=gS,
      tooltip="Plateau de 1,5 % à 7 %. Fait CHUTER le win rate à ~21 % tout en " +
              "montant le R moyen : une sortie au point mort est perdante après frais.")
