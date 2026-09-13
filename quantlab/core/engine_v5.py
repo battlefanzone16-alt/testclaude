@@ -49,6 +49,7 @@ class CfgV5:
     sl_atr_mult: float = 2.0
     sl_atr_len: int = 14
     sl_swing_n: int = 5
+    sl_pct: float = 0.015                     # mode "pct" : stop fixe en % du prix d'entrée
     max_sl_dist: float | None = None
     max_dist_kalman: float | None = None
     min_dist_kalman: float | None = None      # cassure trop timide -> on saute
@@ -94,6 +95,9 @@ class CfgV5:
     # sizing / coûts
     risk_pct: float = 0.01
     max_lev: float = 3.0
+    # levier imposé : None = dimensionnement par le risque (risk_pct / distance au
+    # stop), une valeur = taille fixe (1.0 = tout le capital, sans levier).
+    fixed_lev: float | None = None
     frais_ar: float = 0.00086                 # 0,086 % aller-retour
     spread_x: float = 3.0
 
@@ -202,6 +206,8 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
         elif cfg.sl_mode == "swing":
             k0 = max(0, i - cfg.sl_swing_n + 1)
             sl = l[k0:i + 1].min() if side > 0 else h[k0:i + 1].max()
+        elif cfg.sl_mode == "pct":
+            sl = entry * (1.0 - side * cfg.sl_pct)
         elif cfg.sl_mode == "none":
             sl = 0.0 if side > 0 else float("inf")
         else:
@@ -225,7 +231,8 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
         if cfg.min_dist_kalman is not None and (not np.isfinite(d_kal) or d_kal < cfg.min_dist_kalman):
             i += 1; continue
 
-        lev = min(cfg.risk_pct / sl_dist, cfg.max_lev)
+        lev = (cfg.fixed_lev if cfg.fixed_lev is not None
+               else min(cfg.risk_pct / sl_dist, cfg.max_lev))
 
         # état du trade
         sous_med = (c[i] <= med[i]) if side > 0 else (c[i] >= med[i])

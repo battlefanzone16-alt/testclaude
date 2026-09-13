@@ -164,6 +164,60 @@ Le multiple ATR est bien un plateau et non un pic : ×1,25 → +1,635, ×1,50 �
 décroît de façon monotone avec le multiple (+15,97 % à ×0,75, +5,52 % à ×3,0)
 pendant que le drawdown décroît aussi : le Sharpe arbitre entre les deux.
 
+## Une seule position, tout le capital, stop fixe à 1,5 %
+
+Construction de la spec d'origine : un signal à la fois, tout le capital engagé,
+stop à 1,5 % du prix d'entrée. Testée avec `sl_mode="pct"` et `fixed_lev=1.0`.
+
+D'abord un fait mécanique : **le stop à 1,5 % est touché 56 à 66 % du temps** en
+H4 crypto, et 35 % des trades sortent dans leur propre bougie d'entrée.
+
+Avec un seul slot on ne prend que ~670 des 6 272 signaux : **il faut choisir**,
+et le choix domine tout. Sur 40 tirages aléatoires du token :
+
+| | 1 position (tout le capital) |
+|---|---|
+| P&L 2 ans, médiane | **−6,1 %** |
+| écart-type entre tirages | **± 54,6 points** |
+| minimum / maximum | −72,9 % / +138,6 % |
+| tirages gagnants | **19/40** (pile ou face) |
+| MDD médian / pire | −66,8 % / −84,1 % |
+| volatilité annuelle | ~77 % |
+
+Les meilleures règles de sélection testées (cassure la plus faible +57,2 %,
+pente médiane la plus basse +64,6 %) sont à **+1,08 et +1,21 écart-type** du
+hasard : indiscernables de la chance. Aucune règle de sélection n'a été trouvée.
+
+## Combien de positions simultanées faut-il ?
+
+Même config, dimensionnement par le risque (1 % par position), choix du token
+aléatoire quand il y a plus de signaux que de slots, 20 tirages par ligne.
+
+| slots | trades | Sharpe médian | écart-type | vol/an | MDD |
+|---|---|---|---|---|---|
+| 1 | 471 | 0,61 | **± 0,52** | 23,8 % | −25,9 % |
+| 2 | 903 | 0,85 | ± 0,30 | 38,0 % | −27,7 % |
+| 3 | 1 330 | 0,98 | ± 0,24 | 49,2 % | −34,7 % |
+| 5 | 1 984 | 1,00 | ± 0,18 | 64,6 % | −45,9 % |
+| 8 | 2 938 | 1,03 | ± 0,13 | 92,0 % | −57,0 % |
+| 12 | 3 933 | 1,31 | ± 0,09 | 129,2 % | −68,2 % |
+| **20** | 5 138 | **1,64** | ± 0,04 | 188,0 % | −80,4 % |
+| 30 | 5 730 | 1,67 | ± 0,03 | 233,5 % | −84,7 % |
+| 58 | 5 963 | 1,63 | ± 0,00 | 246,9 % | −86,3 % |
+
+(Les volatilités et drawdowns de ce tableau sont à 1 % de risque par position
+*sans* division par le nombre de tokens : c'est le Sharpe et l'écart-type qui
+sont à lire, la taille se règle ensuite.)
+
+**Le Sharpe monte de façon monotone avec le nombre de slots et l'incertitude
+s'effondre.** À 20 slots on retrouve le 1,63 du portefeuille complet avec 88 %
+des signaux. À 3 slots on plafonne à 0,98 ± 0,24. À 1 slot, 0,61 ± 0,52 :
+l'écart-type dépasse presque le résultat.
+
+**Conclusion : la diversification entre tokens n'est pas un raffinement de ce
+système, c'en est le moteur principal.** Le signal par token est faible ; ce qui
+produit un Sharpe de 1,6 c'est d'en empiler 20 à 30 en parallèle.
+
 ## Comment le portefeuille est construit
 
 Point important, souvent mal compris : **il n'y a aucune sélection entre tokens.**
