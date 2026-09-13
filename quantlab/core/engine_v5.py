@@ -84,6 +84,11 @@ class CfgV5:
     # sorties
     variante_kalman_seul: bool = False
     sortie_rr: float | None = None
+    # Prise partielle : on solde tp_part_frac de la position à tp_part_r fois le
+    # risque, le reste continue avec la sortie souple. Le morceau sorti paie ses
+    # propres frais. None = désactivé.
+    tp_part_r: float | None = None
+    tp_part_frac: float = 0.5
     be_activation_pct: float | None = None
     time_below_n: int | None = None           # levier n°1 du guide
     time_above_n: int | None = None
@@ -241,6 +246,9 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
         be_done = False
         surchauffe = False
         tp = entry * (1 + side * cfg.sortie_rr * sl_dist) if cfg.sortie_rr else None
+        tp_p = (entry * (1 + side * cfg.tp_part_r * sl_dist)) if cfg.tp_part_r else None
+        part_faite = False
+        gain_partiel = 0.0          # en fraction du prix d'entrée, déjà net de frais
         exit_idx = exit_px = None; reason = None
 
         for j in range(entry_idx, n):
@@ -253,6 +261,13 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
                 tph = (h[j] >= tp) if side > 0 else (l[j] <= tp)
                 if tph:
                     exit_idx, exit_px, reason = j, tp, "TP_RR"; break
+            # --- 2bis) prise partielle : ordre limite, intrabar
+            if tp_p is not None and not part_faite:
+                touche = (h[j] >= tp_p) if side > 0 else (l[j] <= tp_p)
+                if touche:
+                    r_brut = side * (tp_p - entry) / entry
+                    gain_partiel = cfg.tp_part_frac * (r_brut - cost)
+                    part_faite = True
             # --- 3) armement du break-even (intrabar, après les sorties)
             if cfg.be_activation_pct is not None and not be_done:
                 ext = h[j] if side > 0 else l[j]
@@ -300,10 +315,17 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
             exit_idx, exit_px, reason = n - 1, c[n - 1], "fin_data"
 
         gross = side * (exit_px - entry) / entry
-        net = gross - cost
+        if part_faite:
+            # le solde restant ne porte plus que (1 - frac) de la position
+            reste = 1.0 - cfg.tp_part_frac
+            net = gain_partiel + reste * (gross - cost)
+            gross = cfg.tp_part_frac * side * (tp_p - entry) / entry + reste * gross
+        else:
+            net = gross - cost
         trades.append(dict(token=token, entry_time=df.index[entry_idx], exit_time=df.index[exit_idx],
                            side="LONG" if side > 0 else "SHORT", entry=entry, sl=sl, exit=exit_px,
-                           reason=reason, bars=exit_idx - entry_idx, sl_dist=sl_dist, lev=lev,
+                           reason=("part+" + reason) if part_faite else reason,
+                           bars=exit_idx - entry_idx, sl_dist=sl_dist, lev=lev,
                            sous_med=bool(sous_med), gross=gross * 100, net=net * 100,
                            R=net / sl_dist, pnl_frac=net * lev))
         i = exit_idx                                       # pas de ré-entrée avant la sortie

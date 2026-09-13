@@ -63,6 +63,18 @@
 //     le point 5 et va plus loin : la structure Donchian doit déjà être sous la
 //     moyenne. Robuste : améliore 9/9 combinaisons (3 seuils × 3 Donchian),
 //     delta médian +0,226.
+//  9. SORTIES EN RR — TESTÉES, TOUTES PERDANTES
+//     Le résultat vient ENTIÈREMENT des runners : les 59 meilleurs trades sur
+//     5 963 (le top 1 %) font 81 % du P&L, et le top 2 % en fait 128 % — tout le
+//     reste est net négatif. Plafonner le gain revient donc à couper la source.
+//     TP fixe (P&L 2 ans, référence sortie souple = +14,15 %) :
+//       1R -> +3,52 %   2R -> +7,75 %   3R -> +10,33 %   4R -> +11,53 %   6R -> +13,45 %
+//     Monotone : plus le TP est haut, moins il coûte. Aucun ne rapporte.
+//     PRISE PARTIELLE (le reste court) : 30 % à 3R donne Sharpe 1,662 contre
+//     1,635, mais P&L 13,00 % contre 14,15 % et Calmar 2,33 contre 2,40.
+//     Seul intérêt réel, non financier : un partiel à 1R fait passer le win rate
+//     de 21,9 % à 41,9 %. Ça ne fait pas gagner plus, ça rend la courbe tenable.
+//
 //  8. PENTES — TESTÉES, LAISSÉES EN OPTION, DÉSACTIVÉES
 //     La pente de la médiane à l'entrée prédit vraiment, mais À L'ENVERS de
 //     l'intuition : R moyen +0,657 dans le quintile où la médiane tombe le plus
@@ -184,6 +196,15 @@ useWidth = input.bool(true, "Achats : exiger un canal qui s'écarte", group=gP,
              "contre 2,19 %. Décoche-le pour le P&L brut maximum.")
 widthMin = input.float(-0.02, "  écartement minimal du canal (ATR/bougie)", step=0.01, group=gP)
 slopeLen = input.int(20, "  fenêtre de mesure des pentes (bougies)", minval=2, group=gP)
+
+// Prise partielle — désactivée : elle ne rapporte pas plus. Voir le point 9.
+gT = "Prise partielle (optionnel — double le win rate, coûte du P&L)"
+usePart  = input.bool(false, "Solder une partie de la position à X×R", group=gT,
+     tooltip="Aucun TP ne bat la sortie souple. Le seul intérêt est le confort : " +
+             "un partiel à 1R fait passer le win rate de 21,9 % à 41,9 %, pour " +
+             "3,2 points de P&L sur deux ans.")
+partR    = input.float(1.0, "  déclenchement, en multiples du risque", minval=0.25, step=0.25, group=gT)
+partPct  = input.float(30.0, "  part soldée (%)", minval=5.0, maxval=90.0, step=5.0, group=gT)
 
 gS = "Risque"
 atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
@@ -320,6 +341,23 @@ if strategy.position_size > 0 and not na(slCur)
     strategy.exit("L-stop", from_entry="L", stop=slCur)
 if strategy.position_size < 0 and not na(slCur)
     strategy.exit("S-stop", from_entry="S", stop=slCur)
+
+// Prise partielle : ordre limite à partR fois la distance au stop. On cesse de
+// l'émettre une fois rempli, sinon qty_percent s'appliquerait au solde restant.
+var float qty0     = na
+var bool  partDone = false
+var float partPx   = na
+if justOpened
+    qty0     := math.abs(strategy.position_size)
+    partDone := false
+    partPx   := strategy.position_avg_price * (1.0 + dir * partR * math.abs(strategy.position_avg_price - slCur) / strategy.position_avg_price)
+if strategy.position_size != 0 and not na(qty0) and math.abs(strategy.position_size) < qty0 * (1.0 - partPct / 200.0)
+    partDone := true
+if usePart and not partDone and not na(partPx)
+    if strategy.position_size > 0
+        strategy.exit("L-part", from_entry="L", qty_percent=partPct, limit=partPx)
+    if strategy.position_size < 0
+        strategy.exit("S-part", from_entry="S", qty_percent=partPct, limit=partPx)
 
 // Sortie souple à deux phases. Tant que le prix n'a pas franchi la médiane on
 // surveille le Kalman ; une fois franchie, la médiane sert de trailing.

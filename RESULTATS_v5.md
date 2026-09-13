@@ -164,6 +164,52 @@ Le multiple ATR est bien un plateau et non un pic : ×1,25 → +1,635, ×1,50 �
 décroît de façon monotone avec le multiple (+15,97 % à ×0,75, +5,52 % à ×3,0)
 pendant que le drawdown décroît aussi : le Sharpe arbitre entre les deux.
 
+## Sorties en RR : on est sauvé par les runners, et uniquement par eux
+
+Qui fait le résultat ? Trades triés par R décroissant, part du P&L total cumulée :
+
+| top X % des trades | nombre | part du P&L |
+|---|---|---|
+| 0,5 % | 29 | **50,5 %** |
+| 1 % | 59 | **80,9 %** |
+| 2 % | 119 | 128,4 % |
+| 5 % | 298 | 222,3 % |
+| 20 % | 1 192 | 374,0 % |
+
+**59 trades sur 5 963 font 81 % de l'argent.** Au-delà du top 2 % le cumul
+dépasse 100 % : tout le reste de la distribution est net négatif. Le seuil du
+top 1 % est à +7,35R, et seulement 5,25 % des trades dépassent +3R.
+
+TP fixe, P&L sur deux ans (référence sortie souple : **+14,15 %**) :
+
+| TP | P&L | Sharpe | win | Calmar | 26S2 |
+|---|---|---|---|---|---|
+| 1R | +3,52 % | 0,837 | 42,6 % | 0,83 | −1,57 |
+| 2R | +7,75 % | 1,311 | 25,9 % | 1,50 | −1,38 |
+| 3R | +10,33 % | 1,520 | 22,7 % | 1,68 | −1,77 |
+| 4R | +11,53 % | 1,568 | 22,1 % | 1,80 | −0,99 |
+| 6R | +13,45 % | 1,590 | 22,0 % | 2,13 | +0,05 |
+| **aucun** | **+14,15 %** | **1,635** | 21,9 % | **2,40** | **+1,50** |
+
+Monotone : plus le TP est haut, moins il coûte, et aucun ne rapporte. Un TP à 1R
+divise le P&L par quatre. Tous les TP fixes rendent aussi 26S2 négatif.
+
+**Prise partielle** (on solde une fraction à X×R, le reste court) :
+
+| variante | Sharpe | P&L | win | MDD | Calmar |
+|---|---|---|---|---|---|
+| référence | 1,635 | **14,15 %** | 21,9 % | −3,0 % | **2,40** |
+| 30 % à 3R | **1,662** | 13,00 % | 22,7 % | −2,9 % | 2,33 |
+| 50 % à 3R | 1,664 | 12,24 % | 22,7 % | −2,9 % | 2,17 |
+| 30 % à 2R | 1,645 | 12,20 % | 25,9 % | −2,6 % | 2,35 |
+| **30 % à 1R** | 1,594 | 10,90 % | **41,9 %** | −2,5 % | 2,26 |
+
+Encore le même motif : le Sharpe monte à peine, le P&L descend, et le Calmar
+baisse. Le seul intérêt réel de la prise partielle n'est pas financier : à 1R
+elle fait passer le **win rate de 21,9 % à 41,9 %**, soit quatre trades gagnants
+sur dix au lieu de deux, pour 3,25 points de P&L sur deux ans. Ça ne fait pas
+gagner davantage, ça rend la courbe psychologiquement tenable.
+
 ## Une seule position, tout le capital, stop fixe à 1,5 %
 
 Construction de la spec d'origine : un signal à la fois, tout le capital engagé,
