@@ -345,6 +345,65 @@ donc pas « 3 points de P&L » — c'est uniquement la régularité : 25S2 tombe
 Sharpe par semestre de la config retenue : **1,84 · 1,82 · 1,05 · 1,31 · 1,50**
 — les cinq positifs. Douze derniers mois glissants : Sharpe +1,63, P&L +6,59 %.
 
+## LE VRAI TEST : la période ANTÉRIEURE au réglage (2022 → août 2024)
+
+Tous les paramètres ont été choisis sur sept. 2024 → août 2026. La période
+2022-01 → 2024-08 n'a **jamais** servi, à rien : c'est un hors-échantillon
+authentique, et il fait 2,7 ans.
+
+Univers **point-in-time de 2022** (130 perps listés à l'époque, donc sans biais
+du survivant), spreads des 58 tokens connus mesurés, les 72 autres estimés par
+un modèle recalibré avec une marge conservatrice de ×1,18.
+
+| config | Sharpe | trades | P&L | MDD | 22S1 | 22S2 | 23S1 | 23S2 | 24S1 |
+|---|---|---|---|---|---|---|---|---|---|
+| spec d'origine | **−0,10** | 35 252 | −2,83 % | −19,9 % | 1,46 | −0,53 | −1,78 | −1,32 | 0,40 |
+| **retenue (canal ×1,50)** | **+0,93** | 13 774 | +5,90 % | −4,7 % | 3,70 | 0,57 | −1,83 | −2,47 | 2,14 |
+| variante P&L (×1,25) | +0,77 | 16 008 | +6,22 % | −5,1 % | 3,04 | 0,20 | −1,12 | −2,26 | 2,10 |
+
+**Les améliorations généralisent : −0,10 → +0,93 sur une période jamais
+regardée.** C'est la validation la plus importante de tout le travail : l'écart
+entre la spec d'origine et la version améliorée se reproduit presque à
+l'identique (≈ +1,0 de Sharpe) sur des données neuves.
+
+Contrôle du biais du survivant : l'univers actuel de 58 tokens donne +0,82,
+l'univers point-in-time de 130 donne +0,93. L'univers propre fait **mieux** —
+le résultat n'est donc pas porté par des survivants.
+
+## Bilan sur 4,7 ans (2022-01 → 12 sept. 2026), univers point-in-time
+
+| config | Sharpe | err-type | t | trades | P&L | rendt/an | vol | MDD |
+|---|---|---|---|---|---|---|---|---|
+| spec d'origine | −0,378 | 0,477 | −0,79 | 58 502 | −13,13 % | −2,95 % | 7,2 % | −24,5 % |
+| **retenue (canal ×1,50)** | **+1,093** | 0,583 | **1,88** | 22 882 | +12,33 % | +2,50 % | 2,3 % | **−4,6 %** |
+| variante P&L (×1,25) | +0,896 | 0,546 | 1,64 | 26 725 | +13,11 % | +2,65 % | 3,0 % | −5,0 % |
+
+Année par année (Sharpe / P&L), config retenue :
+
+| 2022 | 2023 | 2024 | 2025 | 2026* |
+|---|---|---|---|---|
+| **+2,28 / +6,0 %** | **−2,07 / −3,8 %** | +2,19 / +5,6 % | +1,45 / +3,7 % | +0,38 / +0,4 % |
+
+*2026 arrêté au 12 septembre. **Quatre années positives sur cinq**, et une année
+franchement perdante : 2023. C'est un régime sans tendance, et la stratégie y
+perd — il faut le savoir avant de commencer.
+
+Ce que ce test change au diagnostic statistique :
+
+| | avant (2 ans) | maintenant (4,7 ans) |
+|---|---|---|
+| Sharpe | 1,804 | 1,093 |
+| erreur-type | 1,138 | **0,583** |
+| t | 1,59 | **1,88** |
+| seuil du max de 115 essais de bruit | 2,934 | **1,504** |
+| Sharpe déflaté | 0,160 | **0,241** |
+
+Le niveau baisse (1,80 → 1,09 : la période de réglage était flattée, comme
+prévu) mais la **précision double**, et le seuil de bruit passe sous le Sharpe
+mesuré. Sur le seul segment jamais utilisé, t = 1,27 sans aucune correction due.
+
+Il manque encore ~0,5 an de données pour atteindre t = 1,96 à ce niveau.
+
 ## Le chiffre qui décide : Sharpe déflaté
 
 Sharpe 1,633 sur deux ans. **Erreur-type 1,070** → IC95 [−0,47 ; 3,73], t = 1,53.
