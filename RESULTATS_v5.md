@@ -345,6 +345,73 @@ donc pas « 3 points de P&L » — c'est uniquement la régularité : 25S2 tombe
 Sharpe par semestre de la config retenue : **1,84 · 1,82 · 1,05 · 1,31 · 1,50**
 — les cinq positifs. Douze derniers mois glissants : Sharpe +1,63, P&L +6,59 %.
 
+## Actif par actif : l'edge est large et plat, le classement est du bruit
+
+129 tokens, config retenue, 2022 → sept. 2026.
+
+| | |
+|---|---|
+| tokens au Sharpe positif | **99 / 129 = 77 %** |
+| Sharpe médian par token | +0,29 |
+| écart-type observé entre tokens | 0,51 |
+| **écart-type attendu par pur bruit** | **0,47** |
+| meilleur / pire | SNXUSDT +1,15 / XMRUSDT −2,16 |
+
+L'écart-type observé dépasse à peine celui du bruit. Premier signal que le
+classement n'a presque rien à dire.
+
+### Le test qui tranche : persistance entre les deux moitiés
+
+Période 1 = 2022-01 → 2024-08, période 2 = 2024-09 → 2026-09, 107 tokens présents
+dans les deux.
+
+| corrélation P1 → P2 | valeur | p |
+|---|---|---|
+| Sharpe, rang (Spearman) | **−0,034** | 0,73 |
+| Sharpe (Pearson) | +0,103 | 0,29 |
+| P&L, rang | −0,015 | 0,87 |
+
+**Aucune persistance.** Et le test pratique est encore plus parlant :
+
+| sélection faite sur P1 | Sharpe moyen en P2 | P&L moyen en P2 |
+|---|---|---|
+| les 10 meilleurs | +0,314 | +5,67 % |
+| les 20 meilleurs | +0,157 | +3,42 % |
+| les 20 **pires** | +0,149 | +5,43 % |
+| les 30 meilleurs | +0,122 | +4,63 % |
+| **tous (107)** | **+0,281** | **+7,17 %** |
+
+Choisir les 20 meilleurs de la première période donne exactement le même résultat
+que choisir les 20 pires. Et **prendre tout le monde bat les deux.** Matrice de
+transition par quintile : le quintile de tête en P1 reste en tête en P2 dans 5 %
+des cas — contre 20 % attendus par hasard.
+
+Conclusion opérationnelle : **ne jamais sélectionner les tokens sur leur
+performance passée.** C'est strictement nuisible.
+
+### En revanche, un caractère stable prédit : la liquidité
+
+Mesurés sur P1 uniquement, corrélés au Sharpe de chaque période :
+
+| caractère | vs P1 | vs P2 | stable ? |
+|---|---|---|---|
+| **liquidité** (volume $) | +0,153 | **+0,219** (p=0,02) | **oui** |
+| spread | −0,063 | −0,247 (p=0,01) | oui (même signe) |
+| volatilité | +0,305 | −0,168 | **non — le signe s'inverse** |
+| niveau de prix | +0,017 | +0,006 | non |
+
+Sharpe moyen par tercile de liquidité, monotone dans **les deux** périodes :
+
+| tercile | Sharpe P1 | Sharpe P2 | P&L P2 |
+|---|---|---|---|
+| faible | 0,042 | 0,097 | +3,83 % |
+| moyenne | 0,238 | 0,278 | +7,11 % |
+| **forte** | 0,222 | **0,467** | **+10,56 %** |
+
+C'est exactement ce que disait le test d'univers restreint : trier par liquidité
+marche, trier par performance passée ne marche pas. La volatilité, elle, est un
+piège : elle prédisait bien en 2022-2024 puis s'est inversée.
+
 ## LE VRAI TEST : la période ANTÉRIEURE au réglage (2022 → août 2024)
 
 Tous les paramètres ont été choisis sur sept. 2024 → août 2026. La période
