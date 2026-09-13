@@ -22,6 +22,13 @@
 //     meilleur ajout. Attention : le win rate TOMBE à ~21 % (une sortie au
 //     point mort compte comme perdante après frais) alors que le R moyen monte.
 //  4. SHORT ACTIVÉ                          long seul = -0,52, long+short = -0,02
+//  5. GATE MÉDIANE SUR LES LONGS SEULS      +1,17 → +1,36   Calmar 1,08 → 1,40
+//     N'acheter que si la clôture est au-dessus du Kalman ET au-dessus de la
+//     médiane Donchian. ATTENTION : le filtre est ASYMÉTRIQUE. Appliqué aux
+//     longs il fait +0,86 → +1,10 ; appliqué aux shorts il fait +0,82 → +0,48.
+//     Symétrique, les deux effets s'annulent (+1,167 → +1,163, c'est-à-dire
+//     rien). Testé sur 15 combinaisons (5 seuils de cassure × 3 longueurs
+//     Donchian) : il améliore les 15, delta médian +0,175.
 //
 //  ─── CE QUI A ÉTÉ MESURÉ NUISIBLE ET RETIRÉ ────────────────────────────────
 //  TIME_BELOW_N=1 (-0,21, la pire variante) · stratagème pente (ampute la queue
@@ -29,12 +36,21 @@
 //  échantillon, dégrade hors échantillon) · TP fixe à +2R ou +3R (met la queue
 //  droite à ZÉRO). Aucun n'est implémenté ici — volontairement.
 //
-//  ─── DEUX RÉSERVES HONNÊTES ────────────────────────────────────────────────
-//  · ~55 configurations testées : la meilleure est un maximum de 55 essais.
-//  · Le 1er semestre 2026, seul segment vraiment hors échantillon, reste
-//    NÉGATIF (-0,55 contre -2,11 pour la spec d'origine). On réduit la casse,
-//    on ne l'inverse pas. Mesuré ailleurs : le suivi de tendance crypto casse
-//    à partir de 2025.
+//  ─── HORS ÉCHANTILLON (2026, choix faits sur 2024-2025) ────────────────────
+//                        2026 complet   2026 S1
+//    spec d'origine         -1,36        -2,16
+//    améliorée              +0,56        -0,16
+//    améliorée + gate       +0,83        +0,19
+//  Le gate longs est ce qui fait repasser le 1er semestre 2026 au-dessus de
+//  zéro. Il améliore CHACUN des cinq semestres mesurés.
+//
+//  ─── LA RÉSERVE QUI RESTE ──────────────────────────────────────────────────
+//  · ~70 configurations testées : la meilleure est un maximum de 70 essais.
+//    Le gate longs y échappe en partie (15/15 combinaisons améliorées, et
+//    l'asymétrie long/short a une lecture économique : en crypto les baisses
+//    sont rapides, donc attendre la confirmation de la médiane pour vendre
+//    arrive après le mouvement, alors que les hausses laissent le temps).
+//  · 2026 ne fait que 8 mois de données (arrêt au 31 août 2026).
 //
 //  ─── ÉCART ASSUMÉ AVEC LE BACKTEST PYTHON ──────────────────────────────────
 //  Ici les sorties souples partent au marché et sont donc remplies à
@@ -73,6 +89,12 @@ minBreak = input.float(0.75, "Cassure minimale du Kalman (%)", minval=0.0, step=
      tooltip="Exiger que la clôture dépasse le Kalman d'au moins X %. " +
              "Plateau : le win rate monte de 25,6 % à 33,3 % de 0 % à 3 %.")
 maxBreak = input.float(0.0, "Écart maximal au Kalman (%, 0 = désactivé)", minval=0.0, step=1.0, group=gE)
+gateLong = input.bool(true, "Achats : exiger aussi la clôture au-dessus de la médiane", group=gE,
+     tooltip="Sharpe +1,17 -> +1,36, Calmar 1,08 -> 1,40, et le 1er semestre 2026 " +
+             "repasse positif. NE PAS l'appliquer aux ventes : là il DÉGRADE (+0,82 -> +0,48).")
+gateShort = input.bool(false, "Ventes : exiger aussi la clôture sous la médiane", group=gE,
+     tooltip="Désactivé par défaut : mesuré NUISIBLE. Laissé en option pour que tu " +
+             "puisses le constater toi-même plutôt que me croire sur parole.")
 
 gS = "Risque"
 atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
@@ -130,8 +152,12 @@ sizeOk = slDist > 0.0 and not na(atrV)
 lev    = sizeOk ? math.min(maxLev, (riskPct / 100.0) / slDist) : 0.0
 qty    = lev * strategy.equity / close
 
-goLong  = useLong  and crossUp and gapOk and sizeOk and strategy.position_size == 0
-goShort = useShort and crossDn and gapOk and sizeOk and strategy.position_size == 0
+// Filtre médiane à l'entrée, asymétrique : voir le point 5 de l'en-tête.
+medOkL = not gateLong  or (not na(median) and close > median)
+medOkS = not gateShort or (not na(median) and close < median)
+
+goLong  = useLong  and crossUp and gapOk and sizeOk and medOkL and strategy.position_size == 0
+goShort = useShort and crossDn and gapOk and sizeOk and medOkS and strategy.position_size == 0
 
 // ═══ ÉTAT DU TRADE ═══════════════════════════════════════════════════════════
 var float slCur     = na

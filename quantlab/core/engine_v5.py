@@ -54,6 +54,10 @@ class CfgV5:
     min_dist_kalman: float | None = None      # cassure trop timide -> on saute
     # filtre d'entrée
     entry_above_median: bool = False          # levier n°2 du guide
+    # côtés auxquels le filtre médiane s'applique : "both" | "long" | "short".
+    # Mesuré : le filtre aide les longs (+0,86 -> +1,10) et nuit aux shorts
+    # (+0,82 -> +0,48). Symétrique, les deux effets s'annulent.
+    entry_median_sides: str = "both"
     # sorties
     variante_kalman_seul: bool = False
     sortie_rr: float | None = None
@@ -101,7 +105,10 @@ def backtest_v5(df: pd.DataFrame, cfg: CfgV5, token: str = "TOK",
 
         # filtre d'entrée : exiger le bon côté de la médiane DÈS l'entrée
         if cfg.entry_above_median:
-            if (side > 0 and c[i] <= med[i]) or (side < 0 and c[i] >= med[i]):
+            applique = (cfg.entry_median_sides == "both"
+                        or (cfg.entry_median_sides == "long" and side > 0)
+                        or (cfg.entry_median_sides == "short" and side < 0))
+            if applique and ((side > 0 and c[i] <= med[i]) or (side < 0 and c[i] >= med[i])):
                 i += 1; continue
 
         entry_idx = i + 1
