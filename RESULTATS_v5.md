@@ -164,6 +164,43 @@ Le multiple ATR est bien un plateau et non un pic : ×1,25 → +1,635, ×1,50 �
 décroît de façon monotone avec le multiple (+15,97 % à ×0,75, +5,52 % à ×3,0)
 pendant que le drawdown décroît aussi : le Sharpe arbitre entre les deux.
 
+## Comment le portefeuille est construit
+
+Point important, souvent mal compris : **il n'y a aucune sélection entre tokens.**
+Les 58 perps tournent en parallèle, chacun indépendamment, une position à la fois
+par token. Trois signaux le même jour sur trois tokens = les trois sont pris. Le
+P&L agrégé divise par 58, ce qui revient à allouer 1/58 du capital à chaque token.
+
+| | valeur |
+|---|---|
+| positions ouvertes simultanément (médiane) | 10 |
+| p90 / p99 / maximum | 24 / 37 / 47 |
+| part du temps à zéro position | 2,3 % |
+| exposition brute (médiane / max) | 0,055× / 0,26× du capital |
+
+L'exposition brute reste très basse : la marge n'est jamais le facteur limitant,
+et il reste énormément de place pour monter en taille. C'est aussi pourquoi la
+volatilité n'est que de 3-4 %/an.
+
+## Restreindre l'univers (classement point-in-time par volume)
+
+Classement recalculé chaque début de mois sur le volume en dollars des 30 jours
+précédents, décalé d'un jour — aucune information future.
+
+| univers | Sharpe | P&L 2 ans | MDD | Calmar | coût A/R moyen |
+|---|---|---|---|---|---|
+| top 10 | 0,811 | 8,86 % | −4,34 % | 0,98 | 0,1237 % |
+| top 20 | 1,588 | 16,23 % | −3,06 % | 2,51 | 0,1344 % |
+| **top 30** | **1,661** | **16,42 %** | **−2,78 %** | **2,78** | 0,1474 % |
+| top 40 | 1,560 | 14,83 % | −3,16 % | 2,23 | 0,1570 % |
+| 58 (référence) | 1,633 | 14,98 % | −3,01 % | 2,36 | 0,1687 % |
+
+Le top 30 améliore la variante sans filtre de canal sur les quatre colonnes, et
+le coût moyen baisse de 0,169 % à 0,147 % (le volume et le spread sont très
+corrélés, donc trier par volume trie déjà par spread). Le top 10 est trop
+concentré. **Mais les deux effets ne se cumulent pas** : sur la variante AVEC
+filtre de canal, le top 30 dégrade (1,804 → 1,723, MDD −2,02 % → −2,45 %).
+
 ## Config retenue et pourquoi (arbitrage Sharpe / P&L)
 
 Pour comparer un Sharpe à un P&L il faut les rendre commensurables : on ramène
@@ -179,7 +216,23 @@ proportionnel au Sharpe.
 | #5b canal ×1,50 | **1,804** | 11,88 % | 3,08 % | −2,02 % | 2,81 | **18,04 %** |
 | #5a pente ×1,25 | 1,754 | 14,95 % | 3,95 % | −2,47 % | 2,87 | 17,54 % |
 
-**Retenu : ATR ×1,25, filtres de pente désactivés.** Motifs :
+**Correction d'une comparaison biaisée.** Le tableau ci-dessus compare des
+configurations de volatilités différentes, ce qui fausse la lecture du drawdown.
+À volatilité égale :
+
+| | vol | rendt/an | MDD | Calmar |
+|---|---|---|---|---|
+| #4 ×1,25 tel quel | 4,26 % | 7,10 % | −3,01 % | 2,36 |
+| #4 ×1,25 desserré ×0,72 | 3,08 % | 5,12 % | −2,19 % | 2,34 |
+| **#5b canal ×1,50** | 3,08 % | **5,67 %** | **−2,02 %** | **2,81** |
+
+À risque égal, le filtre de canal gagne sur **les deux** axes. Son coût n'est
+donc pas « 3 points de P&L » — c'est uniquement la régularité : 25S2 tombe à
+0,77 et 26S1 à 0,88.
+
+**Défaut livré : ATR ×1,50 + filtre de canal** (le plus défensif, MDD −2,02 %).
+**Variante P&L maximum : ATR ×1,25, canal décoché** (P&L 14,98 %, MDD −3,01 %),
+à faire tourner de préférence sur le top 30. Motifs du choix des paramètres :
 
 - ×1,25 **domine** ×1,50 sur les deux axes (Sharpe 1,633 vs 1,628, P&L 14,98 %
   vs 12,63 %) et se trouve au centre d'un plateau ×1,0–×1,75.

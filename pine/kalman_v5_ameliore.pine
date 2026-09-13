@@ -9,15 +9,33 @@
 //  Mesuré sur 58 alts Binance, sept. 2024 → août 2026, coûts = 0,086 % A/R +
 //  spread mesuré sur carnet × 3. Choix faits sur 2024-2025, 2026 hors échantillon.
 //
-//  ─── RÉGLAGES PAR DÉFAUT = LE MEILLEUR COMPROMIS SHARPE / P&L MESURÉ ───────
-//  ATR ×1,25 · cassure ≥ 0,75 % · BE +2,5 % · gate médiane, médiane < Kalman et
-//  volume > SMA20 sur les ACHATS seuls · filtres de pente désactivés.
-//    Sharpe 1,633 · P&L 14,98 % sur 2 ans · vol 4,3 %/an · MDD -3,0 % · Calmar 2,36
-//    Les cinq semestres sont positifs : 1,84 · 1,82 · 1,05 · 1,31 · 1,50
-//  Pourquoi pas le Sharpe maximum (1,80, en activant le filtre de canal) : à
-//  volatilité égale il rend 18,0 %/an contre 16,3 %, mais il fait tomber 25S2 à
-//  0,77 et 26S1 à 0,88, et coûte 3,1 points de P&L. Le gain est dans le bruit,
-//  la perte de régularité ne l'est pas.
+//  ─── RÉGLAGES PAR DÉFAUT ───────────────────────────────────────────────────
+//  ATR ×1,50 · cassure ≥ 0,75 % · BE +2,5 % · gate médiane, médiane < Kalman,
+//  volume > SMA20 et canal qui s'écarte, sur les ACHATS seuls.
+//    Sharpe 1,804 · P&L 11,88 % sur 2 ans · vol 3,1 %/an · MDD -2,02 % · Calmar 2,81
+//
+//  Le filtre de canal est activé parce qu'à VOLATILITÉ ÉGALE il gagne sur les
+//  deux axes, ce qu'une comparaison brute masque :
+//    #4 sans canal, tel quel        vol 4,26 %  rendt 7,10 %/an  MDD -3,01 %
+//    #4 sans canal, desserré ×0,72  vol 3,08 %  rendt 5,12 %/an  MDD -2,19 %
+//    avec canal (défaut)            vol 3,08 %  rendt 5,67 %/an  MDD -2,02 %
+//  Son coût réel n'est pas 3 points de P&L (c'était une comparaison à volatilité
+//  différente, donc trompeuse) : c'est 25S2 qui tombe à 0,77 et 26S1 à 0,88.
+//
+//  POUR LE P&L BRUT MAXIMUM : décocher le canal et passer l'ATR à ×1,25.
+//    Sharpe 1,633 · P&L 14,98 % · vol 4,3 % · MDD -3,01 % · Calmar 2,36
+//    Semestres 1,84 · 1,82 · 1,05 · 1,31 · 1,50 (les cinq positifs)
+//
+//  ─── SUR QUELS SYMBOLES LE FAIRE TOURNER ───────────────────────────────────
+//  Le backtest tient 58 perps EN PARALLÈLE, chacun indépendant : un signal par
+//  token, jamais d'arbitrage entre eux. Médiane 10 positions ouvertes en même
+//  temps, p90 24, maximum 47 — mais l'exposition brute reste sous 0,26× du
+//  capital, donc la marge n'est jamais le facteur limitant.
+//  Restreindre au TOP 30 par volume (classement recalculé chaque mois) améliore
+//  la variante sans canal : Sharpe 1,661, P&L 16,42 %, MDD -2,78 %, Calmar 2,78,
+//  et le coût moyen aller-retour tombe de 0,169 % à 0,147 %. En revanche ça
+//  DÉGRADE la variante par défaut (1,804 -> 1,723) : les deux ne se cumulent pas.
+//  Le top 10 est trop concentré (Sharpe 0,81).
 //
 //  1. STOP ATR au lieu de la mèche          Sharpe -0,02 → +0,64   ← le gain principal
 //     La mèche de la bougie de cassure est un niveau que le prix VIENT de
@@ -160,17 +178,19 @@ useSlope = input.bool(false, "Achats : rejeter si la médiane monte", group=gP,
              "données : R moyen +0,657 quand la médiane tombe vite, +0,003 quand elle " +
              "monte vite. Sharpe +1,63 -> +1,73 mais P&L 12,02 % -> 11,81 %.")
 slopeMax = input.float(-0.02, "  pente maximale de la médiane (ATR/bougie)", step=0.01, group=gP)
-useWidth = input.bool(false, "Achats : exiger un canal qui s'écarte", group=gP,
-     tooltip="Expansion de volatilité = vraie cassure. Sharpe +1,63 -> +1,81, " +
-             "Calmar 2,20 -> 2,86, MDD -2,8 % -> -2,0 %, mais P&L 12,02 % -> 11,33 %.")
+useWidth = input.bool(true, "Achats : exiger un canal qui s'écarte", group=gP,
+     tooltip="Expansion de volatilité = vraie cassure. ACTIVÉ par défaut : à volatilité " +
+             "égale il rend 5,67 %/an contre 5,12 % ET limite le drawdown à 2,02 % " +
+             "contre 2,19 %. Décoche-le pour le P&L brut maximum.")
 widthMin = input.float(-0.02, "  écartement minimal du canal (ATR/bougie)", step=0.01, group=gP)
 slopeLen = input.int(20, "  fenêtre de mesure des pentes (bougies)", minval=2, group=gP)
 
 gS = "Risque"
 atrLen  = input.int(14, "ATR — longueur", minval=2, group=gS)
-atrMult = input.float(1.25, "Stop = X × ATR", minval=0.25, step=0.25, group=gS,
-     tooltip="x1,25 domine x1,50 sur les deux axes : Sharpe 1,633 contre 1,628 ET " +
-             "P&L 14,98 % contre 12,63 %. Plateau de x1,0 à x1,75 (Sharpe 1,47 à 1,63).")
+atrMult = input.float(1.5, "Stop = X × ATR", minval=0.25, step=0.25, group=gS,
+     tooltip="x1,50 avec le filtre de canal = le réglage le plus défensif (MDD -2,02 %). " +
+             "Pour le P&L maximum : x1,25 + filtre de canal décoché (MDD -3,01 %, P&L +14,98 %). " +
+             "Plateau de x1,0 à x1,75.")
 bePct   = input.float(2.5, "Break-even après +X % (0 = désactivé)", minval=0.0, step=0.5, group=gS,
      tooltip="Plateau de 1,5 % à 7 %. Fait CHUTER le win rate à ~21 % tout en " +
              "montant le R moyen : une sortie au point mort est perdante après frais.")
