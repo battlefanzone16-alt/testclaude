@@ -68,6 +68,45 @@ baisses sont violentes et rapides, donc attendre la confirmation de la médiane
 pour vendre revient à vendre après le mouvement ; les hausses grimpent plus
 lentement et laissent le temps de confirmer.
 
+## Le stop mèche, retesté après les filtres
+
+Sur la spec d'origine, le stop placé sous la mèche de la bougie de cassure était
+le pire des 11 modes testés. **Ce n'est plus vrai une fois les entrées filtrées**
+— et ça change la lecture de tout ce qui précède.
+
+| stop | Sharpe | P&L 2 ans | MDD | % stops | stoppés 1re bougie | trades >+3R |
+|---|---|---|---|---|---|---|
+| ATR ×1,5 | **+1,63** | +12,02 % | −2,8 % | 19,2 % | 6,9 % | 4,34 % |
+| mèche nue | +1,37 | +11,07 % | −3,0 % | 28,2 % | 15,1 % | **5,71 %** |
+| mèche −0,5 % | +1,33 | — | −2,6 % | 21,6 % | 10,0 % | — |
+| mèche −1,5 % | +1,31 | +7,15 % | −2,0 % | 11,8 % | 4,3 % | — |
+| plus bas 5 bougies | +1,26 | — | −2,0 % | 8,7 % | 4,3 % | — |
+| canal Donchian | +1,24 | — | −1,7 % | 4,1 % | 2,8 % | — |
+
+L'ATR reste devant, mais **l'écart sur l'argent n'est plus significatif** :
++0,94 % de capital sur deux ans, t = +0,52. Le mécanisme d'origine n'a pas
+disparu (15,1 % de stops dès la première bougie contre 6,9 %), mais la mèche
+garde **plus de gros gagnants** (5,71 % de trades >+3R contre 4,34 %) : le stop
+serré donne un levier plus élevé, donc les survivants paient davantage.
+
+Ce qui différencie vraiment les deux, c'est la **régularité**, pas le rendement.
+P&L par semestre, en % du capital :
+
+| stop | 24S2 | 25S1 | 25S2 | 26S1 | 26S2 | total |
+|---|---|---|---|---|---|---|
+| ATR ×1,5 | +2,27 | +3,48 | +3,36 | +1,40 | +1,51 | +12,02 |
+| mèche nue | +0,50 | +5,21 | +2,82 | +1,94 | +0,60 | +11,07 |
+
+**Conséquence à retenir : le stop ATR corrigeait surtout un symptôme de mauvaise
+sélection d'entrée.** Une fois les entrées filtrées (cassure minimale, médiane
+sous le Kalman, volume), le choix du stop pèse beaucoup moins. Le gain annoncé
+de +0,66 de Sharpe pour l'ATR était mesuré sur des entrées non filtrées.
+
+Le multiple ATR est bien un plateau et non un pic : ×1,25 → +1,635, ×1,50 →
++1,630, et tout l'intervalle ×1,0 à ×3,0 tient entre +1,47 et +1,64. Le P&L
+décroît de façon monotone avec le multiple (+15,97 % à ×0,75, +5,52 % à ×3,0)
+pendant que le drawdown décroît aussi : le Sharpe arbitre entre les deux.
+
 ## Réserves
 
 - **~70 configurations testées.** La meilleure est un maximum de 70 essais.
