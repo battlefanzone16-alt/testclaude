@@ -33,6 +33,42 @@ routage. C'est un problème d'alpha : il n'y en a pas assez.
 
 ---
 
+## 1 bis. Le résultat à l'horizon visé : positions de 1 h à 4 h
+
+C'est la lecture qui compte, et la première version de ce rapport l'enterrait
+sous un aparté journalier. **Toute l'étude est à cet horizon** : les rendements
+forward sont mesurés à 5, 15, 30, 60, 120 et 240 minutes, et le backtest tient
+des positions de 30 minutes à 4 heures. Rien ici ne tient une position des jours.
+
+Long après ignition, 3 positions simultanées maximum, taker 4,5 bps + 5 bps de
+slippage par côté (`scalp_horizons.py`) :
+
+| Durée max | Meilleure règle, brut | Meilleure règle, net | t | Médiane des 8 règles, net | Règles net > 0 | OOS |
+|---|---|---|---|---|---|---|
+| **1 h** | +10,5 bps | **−8,5 bps** | −1,4 | −11,5 | 0/8 | −17,3 |
+| **2 h** | +17,6 bps | **−1,4 bps** | −0,2 | −4,3 | 0/8 | −15,6 |
+| **3 h** | +21,1 bps | **+2,1 bps** | 0,2 | −2,1 | 3/8 | −14,8 |
+| **4 h** | +19,5 bps | **+0,5 bps** | 0,0 | −6,5 | 1/8 | −8,2 |
+
+Trois lectures :
+
+- **Le brut augmente avec la durée** (+10,5 → +21,1 bps) : le mouvement continue
+  bien au-delà de l'heure. La dérive existe, elle est simplement trop lente par
+  rapport au péage.
+- **1 heure est la pire durée.** Tu paies le coût complet avant que le mouvement
+  n'ait eu le temps de payer. Si tu devais en garder une, ce serait 3 h — mais
+  à +2,1 bps avec t = 0,2, ce n'est pas un edge, c'est zéro.
+- **Hors échantillon, chaque durée est négative** (−8 à −17 bps). Et retirer le
+  10 octobre ne change quasiment rien ici (colonne `net_sans_10oct` dans
+  `scalp_par_duree.csv`) : contrairement à l'event study brute, le backtest
+  sous contrainte de portefeuille n'était déjà pas porté par l'anomalie.
+
+Le win rate tourne autour de 35–42 % avec un trailing stop : profil normal d'un
+suiveur de momentum, où l'espérance vit dans la queue droite. Sauf qu'ici la
+queue droite ne paie pas le péage.
+
+---
+
 ## 2. Le dispositif
 
 **Univers.** 864 perps USDT existent sur Binance. J'en ai retenu 319 :
@@ -247,7 +283,13 @@ deux cas il n'y a pas d'edge à exploiter — mais il ne faut pas lire la courbe
 
 ---
 
-## 7. Le seul effet qui survit — et sa fragilité
+## 7. Aparté : hors du scalp, à l'horizon de plusieurs jours
+
+> Cette section sort du sujet — elle porte sur des positions de plusieurs
+> jours, pas sur du scalp. Je la garde parce que c'est le seul endroit où
+> j'ai trouvé une statistique stable, mais ce n'est **pas** une réponse à la
+> question posée, et la première version de ce rapport lui donnait beaucoup
+> trop de place.
 
 En refaisant exactement la même event study **au pas journalier** : après un pump
 quotidien > +15 %, le token rend **−11,4 % en médiane** sur les 10 jours suivants.
@@ -338,6 +380,7 @@ python3 ml_search.py                        # stratégie D (le test qui tranche)
 python3 build_paths.py --events events_tail.parquet
 python3 run_backtest.py                     # grille de 64 règles de sortie
 python3 cost_sensitivity.py                 # le seuil de rentabilité
+python3 scalp_horizons.py                   # le résultat par durée : 1 h / 2 h / 3 h / 4 h
 python3 test_daily_v2.py                    # effet journalier (contrôle âge de listing)
 python3 analyze_oct.py                      # décomposition du 10 octobre
 ```
@@ -355,5 +398,6 @@ Le cache disque est la règle : rien n'est retéléchargé deux fois.
 | `simulate.py` / `simulate_vec.py` | moteur de trade + contrainte de portefeuille |
 | `analyze_oct.py` | décomposition jour par jour de l'anomalie du 10 octobre |
 | `test_daily_v2.py` | effet journalier, avec contrôle explicite de l'âge de listing |
+| `scalp_horizons.py` | **le résultat par durée de détention : 1 h, 2 h, 3 h, 4 h** |
 | `test_pullback.py` | stratégie C (attention à l'ordre des tests, §5) |
 | `ml_search.py` | recherche systématique avec validation OOS |
