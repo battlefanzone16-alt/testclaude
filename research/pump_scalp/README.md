@@ -1,11 +1,14 @@
 # Scalp de pump sur perps crypto — étude et backtest
 
-**Verdict : aucun discriminant validé.** Le gisement brut existe, il est réel,
-il est mesurable — et il fait très exactement la taille du péage. Ni les klines
-(§1 à §7), ni l'open interest (§1 ter), ni le flux d'ordres tick par tick (§1
-quater) ne permettent de séparer à l'avance les mouvements qui paient. Trois
-biais de look-ahead ont fabriqué trois faux résultats en cours de route ; les
-débusquer est l'essentiel de ce qu'il y a à retenir ici. Ce document montre comment j'y arrive et
+**Verdict.** Le mouvement est bien prévisible, faiblement : +8 à +10 bps sur 5
+à 15 minutes en temps-tick, avec t ≈ 2,6. Mais ce gisement fait **exactement la
+taille de la friction**, et de quel côté de zéro on tombe ne dépend pas du
+signal — cela dépend de la grille tarifaire, de la priorité dans la file
+d'ordres et de la latence (§1 octies). Aucun discriminant ne permet de trier les
+mouvements à l'avance : ni les klines (§1 à §7), ni l'open interest (§1 ter), ni
+le flux d'ordres (§1 quater). Trois biais de look-ahead ont fabriqué trois faux
+résultats en cours de route ; les débusquer est l'essentiel de ce qu'il y a à
+retenir ici. Ce document montre comment j'y arrive et
 ce qui est mort en route — quatre stratégies, trois biais de look-ahead dont
 deux à moi, et le piège de pondération qui invalidait la moitié de mes chiffres.
 
@@ -253,6 +256,100 @@ l'instantané à la minute près (écart de 0,06 bps sur BTC au bon décalage, c
 16,6 bps au décalage supposé). `resolve_timestamp.py` est réutilisable pour
 n'importe quelle source horodatée qui publie deux grandeurs dont le rapport est
 observable ailleurs.
+
+---
+
+## 1 octies. En temps-tick : l'edge existe, il fait la taille de la friction
+
+Objection recevable : des bots prives scalpent ces mouvements. Mon étude n'avait
+testé qu'**une seule formulation** — détection sur bougies 1 minute, entrée à
+l'ouverture de la bougie suivante, au marché. Soit **30 à 60 secondes après
+l'information**, en traversant le spread. Un bot agit en millisecondes et ne
+traverse pas. J'ai donc reconstruit un moteur entièrement en temps-tick.
+
+Dispositif : détection sur le flux de trades (fenêtre 30 s, z > 6, volume > 8×),
+entrée à +L millisecondes du tick déclencheur, exécution par balayage réel du
+flux, sortie en temps-tick. **2 500 jours-symboles tirés au hasard** — pas
+seulement des jours de pump, sinon les faux positifs disparaissent et le P&L est
+un mirage. 2 896 déclenchements, 2 148 épisodes.
+
+### La continuation existe, et la vitesse la renforce
+
+| Horizon | latence 0,2 s | 2 s | 10 s | 60 s |
+|---|---|---|---|---|
+| 1 min | **+6,7 bps** (t=2,39) | +4,4 | +3,0 | +2,9 |
+| 5 min | **+9,7 bps** (t=2,63) | +8,1 | +7,1 | +6,9 |
+| 15 min | **+10,4 bps** (t=2,02) | +8,9 | +7,8 | +8,7 |
+| 1 h | −2,9 | −4,7 | −5,9 | −7,0 |
+
+C'est un vrai résultat : le mouvement continue, entre 1 et 15 minutes, et être
+rapide vaut environ 4 bps sur l'horizon 1 minute. Mon premier backtest tick
+sortait au bout d'une heure en médiane — précisément là où le gain s'est
+dissipé. Erreur de conception de ma part, corrigée.
+
+### Mais toutes les exécutions butent sur le même mur
+
+| Exécution | Meilleur net | Combinaisons positives |
+|---|---|---|
+| Taker aller-retour, 20 réglages (durée × taille) | **−0,0 bps** | 0/20 |
+| Entrée passive après l'ignition, 30 réglages | **−8,8 bps** | 0/30 |
+| Entrée au marché, sortie en limite, 24 réglages | **−0,7 bps** | 0/24 |
+
+L'entrée passive est le cas le plus instructif : elle est **anti-sélectionnée**,
+et les données le chiffrent. Le taux de remplissage à 0-5 bps sous le signal est
+de **80 à 90 %** — le prix revient vous chercher presque à chaque fois,
+c'est-à-dire qu'on est servi quand le momentum échoue et jamais quand il part.
+
+### Ce qui fait basculer : les frais, pas le signal
+
+La configuration asymétrique (entrer au marché, sortir en limite) comble presque
+tout l'écart. Ce qui reste se joue sur la grille tarifaire :
+
+| Palier | Net/trade | t | Mois positifs | Sans les 3 meilleurs mois |
+|---|---|---|---|---|
+| VIP 0 (base) | +0,79 bps | 0,66 | 12/24 | −1,52 |
+| VIP 4 | +3,34 | 2,80 | 18/24 | +1,06 |
+| **VIP 6** | **+4,15** | **3,49** | **19/24** | **+1,87** |
+| **VIP 9** | **+5,24** | **4,43** | **20/24** | **+2,98** |
+
+### Et le dernier garde-fou remet tout en cause
+
+Ces chiffres supposent d'être servi **dès que le prix touche** la limite de
+sortie, c'est-à-dire d'être toujours en tête de file. C'est exactement
+l'optimisme qui avait fabriqué mon faux résultat sur le repli en bougies 1 min.
+En exigeant que le prix **traverse** la limite :
+
+| Traversée exigée | VIP 6 | VIP 9 | Mois positifs (VIP 6) |
+|---|---|---|---|
+| 0 bps (premier contact) | +4,15 | +5,24 | 19/24 |
+| 5 bps | +0,85 | +1,98 | 14/24 |
+| 10 bps | **−1,79** | −0,64 | 10/24 |
+| 20 bps | −6,51 | −5,31 | 4/24 |
+
+**0 combinaison positive et robuste avec 10 bps de traversée exigée.**
+
+### La conclusion, qui réconcilie tout
+
+L'edge est réel — +8 à +10 bps sur 5 à 15 minutes, t ≈ 2,6 — et il fait
+**exactement la taille de la friction**. De quel côté de zéro on tombe ne dépend
+pas du signal mais de trois avantages d'infrastructure :
+
+1. **La grille tarifaire.** De VIP 0 à VIP 9 : 6 bps d'écart par trade, sur un
+   gisement de 8. Décisif.
+2. **La priorité dans la file.** Premier contact contre 10 bps de traversée :
+   6 bps d'écart. Décisif.
+3. **La latence.** 0,2 s contre 60 s : ~4 bps sur l'horizon 1 minute.
+
+Aucun des trois ne s'obtient en cherchant un meilleur filtre. Et le point qui
+tranche : **cette stratégie ne peut pas financer son propre palier de frais.** À
+10 000 $ par trade elle génère de l'ordre de 120 M$ de volume sur 30 jours, là
+où les paliers VIP 6-9 en exigent des milliards. Le palier doit venir
+d'ailleurs — d'une activité de tenue de marché ou d'un desk qui l'a déjà.
+
+C'est, très précisément, le profil d'un bot privé qui y arrive. Non parce qu'il
+a trouvé un signal que je n'ai pas trouvé, mais parce qu'il opère depuis une
+structure de coûts et une position dans la file qu'un compte de détail n'a pas.
+**Ta prémisse est juste ; ce n'est simplement pas une question de stratégie.**
 
 ---
 
@@ -603,6 +700,13 @@ python3 run_flow.py && python3 test_flow.py # microstructure tick par tick
 python3 test_slippage.py                    # le slippage réel
 python3 dl_funding.py && python3 test_funding.py
 python3 bilan_recherche.py                  # combien de tests, quel seuil de hasard
+
+# --- temps-tick : latence, exécution, frais (§1 octies) ---
+python3 run_tick.py   && python3 analyse_tick.py   # ce que vaut la vitesse
+python3 run_tick2.py                               # durées et tailles
+python3 run_passif.py                              # entrée passive : anti-sélection
+python3 run_mixte.py  && python3 run_marge.py      # sortie en limite, priorité de file
+python3 portefeuille_v2.py                         # P&L par palier de frais
 python3 test_daily_v2.py                    # effet journalier (contrôle âge de listing)
 python3 analyze_oct.py                      # décomposition du 10 octobre
 ```
@@ -635,3 +739,8 @@ Le cache disque est la règle : rien n'est retéléchargé deux fois.
 | `test_slippage.py` | **le slippage réel, mesuré sur les trades** |
 | `test_funding.py` | coût de funding par durée de détention |
 | `bilan_recherche.py` | comptage des tests et seuil du hasard |
+| `tick_engine.py` | **moteur en temps-tick : détection, latence, balayage, sorties** |
+| `run_tick.py` / `run_tick2.py` | backtest tick, latences et durées de détention |
+| `run_passif.py` | entrée en limite : la démonstration de l'anti-sélection |
+| `run_mixte.py` / `run_marge.py` | entrée au marché / sortie en limite, et priorité de file |
+| `portefeuille_v2.py` | simulation portefeuille par palier de frais |
