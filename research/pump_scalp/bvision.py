@@ -107,7 +107,8 @@ def fetch(symbol, interval, start, end, market="futures") -> pd.DataFrame:
     return full[(full.index >= pd.Timestamp(start)) & (full.index < pd.Timestamp(end))]
 
 
-def fetch_many(symbols, interval, start, end, workers=16, market="futures", quiet=False):
+def fetch_many(symbols, interval, start, end, workers=16, market="futures",
+               quiet=False, collect=True):
     """Telecharge en parallele au niveau (symbole, mois) : c'est la granularite
     ou le parallelisme paie, un symbole seul etant une chaine de mois sequentiels."""
     jobs = [(s, y, m) for s in symbols for y, m in months(start, end)]
@@ -124,6 +125,11 @@ def fetch_many(symbols, interval, start, end, workers=16, market="futures", quie
                 print(f"  ECHEC {s} {y}-{m:02d}: {e}", file=sys.stderr)
             if not quiet and n % 200 == 0:
                 print(f"  {n}/{len(jobs)} ({time.time()-t0:.0f}s)", file=sys.stderr, flush=True)
+    # On ne reassemble QUE si l'appelant veut les donnees. Charger 400 symboles
+    # x 1 an de 1-min pour les jeter aussitot, c'est 7 Go de RAM pour rien - et
+    # c'est ce que faisait la version precedente.
+    if not collect:
+        return {}
     for s in symbols:
         df = fetch(s, interval, start, end, market)
         if len(df):

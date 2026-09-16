@@ -1,13 +1,19 @@
 # Scalp de pump sur perps crypto — étude et backtest
 
-**Verdict : le scalp d'ignition ne passe pas le coût de transaction.** Le
-gisement brut existe, il est réel, il est mesurable — et il fait très
-exactement la taille du péage. Ce document montre comment j'y arrive, ce que
-j'ai essayé, et le seul effet qui a survécu aux contrôles — un effet de médiane,
-à l'opposé de ce que tu cherchais en direction comme en horizon.
+**Verdict en deux temps.** Sur les seules klines de prix, le scalp d'ignition ne
+passe pas le coût de transaction : le gisement brut existe, il est réel, il est
+mesurable — et il fait très exactement la taille du péage (§1 à §7). Avec
+l'**open interest**, un discriminant apparaît et survit à tous les tests de
+robustesse : +26,8 bps nets par épisode, 19 mois positifs sur 24, sur deux
+périodes indépendantes (§1 ter). Edge modeste, t ≈ 2, et suspendu à une
+contrainte d'exécution précise. Ce document montre comment j'y arrive et
+ce qui est mort en route — quatre stratégies, trois biais de look-ahead dont
+deux à moi, et le piège de pondération qui invalidait la moitié de mes chiffres.
 
-Données : 319 perps USDT, bougies 1 minute, 2025-09-01 → 2026-09-01
-(12 mois, ~4,4 Go, 168 M de bougies), source `data.binance.vision`.
+Données : 525 perps USDT (univers screené séparément sur chaque période),
+bougies 1 minute, **2024-09-01 → 2026-09-01** (24 mois, ~11 Go), plus l'open
+interest et les ratios long/short au pas 5 min, la prime perp et les klines
+spot. Source : `data.binance.vision`.
 
 ---
 
@@ -66,6 +72,83 @@ Trois lectures :
 Le win rate tourne autour de 35–42 % avec un trailing stop : profil normal d'un
 suiveur de momentum, où l'espérance vit dans la queue droite. Sauf qu'ici la
 queue droite ne paie pas le péage.
+
+---
+
+## 1 ter. Le discriminant trouvé : l'expansion d'open interest
+
+**Ce qui sépare le bon mouvement du mauvais, c'est l'open interest.** Un pump où
+l'OI explose pendant la rafale — des positions *nouvelles* qui se prennent —
+continue. Un pump où l'OI stagne ou baisse — du rachat de shorts, de la rotation
+sur des positions existantes — ne continue pas.
+
+C'est l'inverse de mon hypothèse de départ, qui voyait dans l'explosion d'OI le
+signe d'une bulle de levier prête à retomber. Les données disent le contraire :
+du capital frais qui s'engage est un signal de flux, pas de mousse.
+
+### Règle et résultat
+
+Entrée : `r_burst > 3%` sur 5 min, `z > 3`, **`ΔOI > +1%` sur la même fenêtre**.
+Sortie : stop à 1 unité de risque, trailing 2,5, time stop 4 h. 3 positions max,
+taker 4,5 bps + 5 bps de slippage par côté. 24 mois, 2024-09 → 2026-08.
+
+| | Règle OI | Contrôle `ΔOI ≤ 0` | Référence sans OI |
+|---|---|---|---|
+| Trades | 3 649 (5,0/jour) | 6 052 | 11 363 |
+| Brut | **+41,1 bps** | +14,7 | +15,6 |
+| **Net par épisode** | **+26,8 bps** | **−4,8** | **−1,7** |
+| t (par épisode) | **1,92** | −0,41 | −0,21 |
+| Mois positifs | **19/24** | 10/24 | 11/24 |
+| Sans les 3 meilleurs mois | **+12,7** | −20,7 | −12,2 |
+| 2024-25 / 2025-26 | **+16,4 / +35,8** | −9,6 / −2,2 | −14,0 / +6,8 |
+| Equity (5 %/trade) | **1,45×** | 0,83× | 0,75× |
+| Max drawdown | 20,0 % | 28,4 % | 32,2 % |
+
+### Pourquoi je le crois, cette fois
+
+Les cinq tests qui ont tué tous les candidats précédents, il les passe :
+
+1. **Le contrôle inverse est négatif.** `ΔOI ≤ 0` donne −4,8 bps et 10/24 mois.
+   Une condition data-minée n'a pas d'inverse qui se comporte à l'opposé ; un
+   effet réel, si.
+2. **Dose-réponse monotone.** ΔOI > 0,5 % → +12,8 bps ; > 1 % → +26,8 ; > 2 %
+   → +38,2. Le signal croît avec la dose.
+3. **Robustesse à la règle de sortie.** 16 variantes testées : **16/16 positives**,
+   et **16/16 le restent** une fois retirés les 3 meilleurs mois. C'est le test
+   qui avait éliminé le signal « grappe » et le walk-forward.
+4. **Deux périodes indépendantes.** Univers screené séparément sur chacune :
+   **16/16 variantes positives sur les deux**.
+5. **Pondération par épisode.** Tous les chiffres ci-dessus comptent un épisode,
+   pas un événement — la correction qui avait fait tomber +111 bps à −6.
+
+### Ce qu'il faut savoir avant d'y toucher
+
+- **t ≈ 2, pas 4.** C'est un edge modeste et réel, pas une machine à cash. 1,45×
+  en deux ans à 5 % du capital par trade, pour 20 % de drawdown.
+- **Taux de réussite 30-40 %.** L'espérance vit dans la queue droite : beaucoup
+  de petites pertes, quelques gros gains. Psychologiquement dur à tenir.
+- **Le coût est le mur.** Seuil de rentabilité vers 39 bps aller-retour. À 10 bps
+  de slippage il reste +12,3 bps, à 15 bps il ne reste rien.
+
+| Coût aller-retour | Net par épisode | t | Equity |
+|---|---|---|---|
+| 8 bps | +33,3 | 2,76 | 1,83× |
+| 13 bps | +28,3 | 2,35 | 1,66× |
+| **19 bps (hypothèse de base)** | **+22,3** | **1,85** | **1,49×** |
+| 29 bps | +12,3 | 1,02 | 1,24× |
+| 39 bps | +2,3 | 0,19 | 1,03× |
+
+- **La fraîcheur de l'open interest est la contrainte qui décide.** L'edge vaut
+  +31,6 bps avec l'OI de la minute, +26,8 avec 1 minute de retard, +21,8 avec
+  2 minutes, et plus rien au-delà de 3. Les chiffres publiés ici sont ceux **à
+  1 minute de retard** : je n'ai pas pu établir avec certitude, depuis l'archive
+  seule, si l'horodatage Binance des tranches de 5 minutes est un instantané ou
+  une fin de fenêtre. Le test d'alignement en temps-événement penche pour
+  l'instantané (saut d'OI moyen de +0,88 % dans la tranche du signal contre
+  +0,34 % dans la suivante), mais pencher n'est pas prouver. En pratique il
+  faudrait interroger l'open interest en temps réel plutôt que l'historique
+  par tranches — **à vérifier contre les limites de débit de l'API avant de
+  construire quoi que ce soit dessus.**
 
 ---
 
@@ -381,6 +464,13 @@ python3 build_paths.py --events events_tail.parquet
 python3 run_backtest.py                     # grille de 64 règles de sortie
 python3 cost_sensitivity.py                 # le seuil de rentabilité
 python3 scalp_horizons.py                   # le résultat par durée : 1 h / 2 h / 3 h / 4 h
+
+# --- le discriminant : open interest (§1 ter) ---
+bash run_hist.sh                            # période 2024-09 -> 2025-09
+python3 build_breadth.py                    # largeur de marché
+python3 test_micro.py                       # levier vs demande réelle
+python3 walkforward_final.py                # la procédure, sélection comprise
+python3 check_lag2.py && python3 bt_lag1.py # sensibilité à la fraîcheur + backtest final
 python3 test_daily_v2.py                    # effet journalier (contrôle âge de listing)
 python3 analyze_oct.py                      # décomposition du 10 octobre
 ```
@@ -401,3 +491,10 @@ Le cache disque est la règle : rien n'est retéléchargé deux fois.
 | `scalp_horizons.py` | **le résultat par durée de détention : 1 h, 2 h, 3 h, 4 h** |
 | `test_pullback.py` | stratégie C (attention à l'ordre des tests, §5) |
 | `ml_search.py` | recherche systématique avec validation OOS |
+| `bv_extra.py` | téléchargement OI / prime perp / klines spot |
+| `build_breadth.py` | largeur de marché : combien de tokens pumpent ensemble |
+| `build_micro.py` | features de microstructure (OI, prime, participation spot) |
+| `evaluate2.py` | **pondération par épisode** — la correction qui invalide les moyennes par événement |
+| `walkforward_final.py` | walk-forward sur la procédure de sélection elle-même |
+| `check_lag2.py` / `check_align.py` | fraîcheur de l'OI et convention d'horodatage |
+| `bt_lag1.py` | **le backtest final, OI retardée d'une minute** |

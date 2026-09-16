@@ -1,0 +1,11 @@
+procedure,mois_testes,OOS_moy_bps,OOS_med_bps,mois_pos,IS_moy_bps,ecart_IS_OOS
+"sans OI | t, 100 ep, train 6m",18,41.5,8.8,9/18,147.8,106.3
+"sans OI | t, 150 ep, train 6m",18,49.7,51.8,10/18,149.6,100.0
+"sans OI | prudent, 150 ep, train 6m",18,13.1,-7.8,9/18,161.9,148.8
+"sans OI | prudent, 300 ep, train 6m",18,8.4,-11.9,8/18,79.9,71.5
+"sans OI | t, 150 ep, train 9m",15,-31.0,0.4,8/15,153.9,184.8
+"AVEC OI | t, 100 ep, train 6m",18,91.9,32.9,10/18,195.5,103.5
+"AVEC OI | t, 150 ep, train 6m",18,118.8,32.9,10/18,179.4,60.6
+"AVEC OI | prudent, 150 ep, train 6m",18,57.2,-41.6,8/18,202.2,145.0
+"AVEC OI | prudent, 300 ep, train 6m",18,45.0,24.2,10/18,110.1,65.1
+"AVEC OI | t, 150 ep, train 9m",15,4.3,-26.2,6/15,187.3,183.0
