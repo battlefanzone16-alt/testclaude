@@ -115,3 +115,27 @@ def run(jobs, fn, workers, label):
                       file=sys.stderr, flush=True)
     print(f"{label} termine : {n} fichiers, {err} echecs, {time.time()-t0:.0f}s",
           file=sys.stderr)
+
+
+def fetch_funding_month(sym, y, m):
+    """Taux de funding (toutes les 8 h). Fichiers minuscules, mensuels."""
+    path = os.path.join(CACHE, "funding", sym, f"{y}-{m:02d}.parquet")
+    if os.path.exists(path):
+        return
+    url = f"{BASE}/futures/um/monthly/fundingRate/{sym}/{sym}-fundingRate-{y}-{m:02d}.zip"
+    blob = _get(url, timeout=60, retries=3)
+    if blob is None:
+        _store(path, pd.DataFrame(columns=["taux"], index=pd.DatetimeIndex([], name="timestamp")))
+        return
+    with zipfile.ZipFile(io.BytesIO(blob)) as z:
+        raw = z.read(z.namelist()[0])
+    txt = raw.decode("utf-8", errors="replace")
+    hdr = None if txt.split(",", 1)[0].strip().lstrip("-").isdigit() else 0
+    df = pd.read_csv(io.StringIO(txt), header=hdr)
+    df = df.iloc[:, :3]
+    df.columns = ["t", "interval", "taux"][:df.shape[1]]
+    t = pd.to_numeric(df["t"], errors="coerce")
+    unit = "us" if float(t.dropna().iloc[0]) > 1e14 else "ms"
+    out = pd.DataFrame({"taux": pd.to_numeric(df["taux"], errors="coerce").astype("float32")})
+    out.index = pd.DatetimeIndex(pd.to_datetime(t, unit=unit), name="timestamp")
+    _store(path, out[~out.index.duplicated(keep="last")].sort_index())

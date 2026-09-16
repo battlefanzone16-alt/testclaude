@@ -1,12 +1,11 @@
 # Scalp de pump sur perps crypto — étude et backtest
 
-**Verdict en deux temps.** Sur les seules klines de prix, le scalp d'ignition ne
-passe pas le coût de transaction : le gisement brut existe, il est réel, il est
-mesurable — et il fait très exactement la taille du péage (§1 à §7). Avec
-l'**open interest**, un discriminant apparaît et survit à tous les tests de
-robustesse : +26,8 bps nets par épisode, 19 mois positifs sur 24, sur deux
-périodes indépendantes (§1 ter). Edge modeste, t ≈ 2, et suspendu à une
-contrainte d'exécution précise. Ce document montre comment j'y arrive et
+**Verdict : aucun discriminant validé.** Le gisement brut existe, il est réel,
+il est mesurable — et il fait très exactement la taille du péage. Ni les klines
+(§1 à §7), ni l'open interest (§1 ter), ni le flux d'ordres tick par tick (§1
+quater) ne permettent de séparer à l'avance les mouvements qui paient. Trois
+biais de look-ahead ont fabriqué trois faux résultats en cours de route ; les
+débusquer est l'essentiel de ce qu'il y a à retenir ici. Ce document montre comment j'y arrive et
 ce qui est mort en route — quatre stratégies, trois biais de look-ahead dont
 deux à moi, et le piège de pondération qui invalidait la moitié de mes chiffres.
 
@@ -75,80 +74,185 @@ queue droite ne paie pas le péage.
 
 ---
 
-## 1 ter. Le discriminant trouvé : l'expansion d'open interest
+## 1 ter. L'open interest : un discriminant qui n'en était pas un
 
-**Ce qui sépare le bon mouvement du mauvais, c'est l'open interest.** Un pump où
-l'OI explose pendant la rafale — des positions *nouvelles* qui se prennent —
-continue. Un pump où l'OI stagne ou baisse — du rachat de shorts, de la rotation
-sur des positions existantes — ne continue pas.
+Cette section a d'abord conclu l'inverse. Je la laisse entière parce que la
+façon dont elle s'est effondrée est le résultat le plus utile de l'étude.
 
-C'est l'inverse de mon hypothèse de départ, qui voyait dans l'explosion d'OI le
-signe d'une bulle de levier prête à retomber. Les données disent le contraire :
-du capital frais qui s'engage est un signal de flux, pas de mousse.
+### Ce que je croyais avoir trouvé
 
-### Règle et résultat
+L'open interest semblait séparer nettement les bons mouvements des mauvais. Un
+pump où l'OI explose pendant la rafale continuait ; un pump où l'OI stagne, non.
+Avec `ΔOI > +1 %` sur la fenêtre de rafale : **+31,6 bps nets par épisode,
+t = 2,44, 17/24 mois positifs**, le contrôle inverse négatif, une dose-réponse
+monotone, 16/16 règles de sortie positives y compris après retrait des trois
+meilleurs mois. Tous les tests qui avaient tué les candidats précédents, il les
+passait.
 
-Entrée : `r_burst > 3%` sur 5 min, `z > 3`, **`ΔOI > +1%` sur la même fenêtre**.
-Sortie : stop à 1 unité de risque, trailing 2,5, time stop 4 h. 3 positions max,
-taker 4,5 bps + 5 bps de slippage par côté. 24 mois, 2024-09 → 2026-08.
+### Comment j'ai daté l'instantané
 
-| | Règle OI | Contrôle `ΔOI ≤ 0` | Référence sans OI |
-|---|---|---|---|
-| Trades | 3 649 (5,0/jour) | 6 052 | 11 363 |
-| Brut | **+41,1 bps** | +14,7 | +15,6 |
-| **Net par épisode** | **+26,8 bps** | **−4,8** | **−1,7** |
-| t (par épisode) | **1,92** | −0,41 | −0,21 |
-| Mois positifs | **19/24** | 10/24 | 11/24 |
-| Sans les 3 meilleurs mois | **+12,7** | −20,7 | −12,2 |
-| 2024-25 / 2025-26 | **+16,4 / +35,8** | −9,6 / −2,2 | −14,0 / +6,8 |
-| Equity (5 %/trade) | **1,45×** | 0,83× | 0,75× |
-| Max drawdown | 20,0 % | 28,4 % | 32,2 % |
+Restait une question que je ne savais pas trancher : la ligne d'open interest
+étiquetée 21:45 décrit-elle l'état **à** 21:45, ou à la fin d'une fenêtre ? Une
+corrélation décalée ne départageait pas (0,0439 à k=0 contre 0,0471 à k=+1).
 
-### Pourquoi je le crois, cette fois
+La réponse était dans le fichier lui-même. Il contient l'OI en contrats **et**
+en dollars : leur rapport est le **prix au moment exact du relevé**. Il suffit
+de comparer ce prix implicite aux klines 1 minute, dont l'horodatage ne souffre
+aucune ambiguïté.
 
-Les cinq tests qui ont tué tous les candidats précédents, il les passe :
+| Décalage testé | 0 min | +3 min | **+4 min** | +5 min |
+|---|---|---|---|---|
+| Écart médian prix implicite / kline | 16,6 bps | 7,8 bps | **1,2 bps** | 9,2 bps |
 
-1. **Le contrôle inverse est négatif.** `ΔOI ≤ 0` donne −4,8 bps et 10/24 mois.
-   Une condition data-minée n'a pas d'inverse qui se comporte à l'opposé ; un
-   effet réel, si.
-2. **Dose-réponse monotone.** ΔOI > 0,5 % → +12,8 bps ; > 1 % → +26,8 ; > 2 %
-   → +38,2. Le signal croît avec la dose.
-3. **Robustesse à la règle de sortie.** 16 variantes testées : **16/16 positives**,
-   et **16/16 le restent** une fois retirés les 3 meilleurs mois. C'est le test
-   qui avait éliminé le signal « grappe » et le walk-forward.
-4. **Deux périodes indépendantes.** Univers screené séparément sur chacune :
-   **16/16 variantes positives sur les deux**.
-5. **Pondération par épisode.** Tous les chiffres ci-dessus comptent un épisode,
-   pas un événement — la correction qui avait fait tomber +111 bps à −6.
+Le minimum est net, et quasi exact (0,06 bps sur BTC). **La ligne étiquetée T
+est un instantané pris à T+5.**
 
-### Ce qu'il faut savoir avant d'y toucher
+Donc, pour un signal à 21:47, je lisais l'OI de 21:50 comparée à celle de 21:45 :
+je mesurais la variation d'open interest dans les cinq minutes **suivant** le
+signal. Autrement dit « le pump continue-t-il quand les gens continuent
+d'acheter ? ». Oui, évidemment — et c'est injouable.
 
-- **t ≈ 2, pas 4.** C'est un edge modeste et réel, pas une machine à cash. 1,45×
-  en deux ans à 5 % du capital par trade, pour 20 % de drawdown.
-- **Taux de réussite 30-40 %.** L'espérance vit dans la queue droite : beaucoup
-  de petites pertes, quelques gros gains. Psychologiquement dur à tenir.
-- **Le coût est le mur.** Seuil de rentabilité vers 39 bps aller-retour. À 10 bps
-  de slippage il reste +12,3 bps, à 15 bps il ne reste rien.
+### Ce qu'il reste une fois l'alignement corrigé
 
-| Coût aller-retour | Net par épisode | t | Equity |
-|---|---|---|---|
-| 8 bps | +33,3 | 2,76 | 1,83× |
-| 13 bps | +28,3 | 2,35 | 1,66× |
-| **19 bps (hypothèse de base)** | **+22,3** | **1,85** | **1,49×** |
-| 29 bps | +12,3 | 1,02 | 1,24× |
-| 39 bps | +2,3 | 0,19 | 1,03× |
+En n'utilisant que les lignes publiées avant le signal (retard de 5 min sur la
+série étiquetée) :
 
-- **La fraîcheur de l'open interest est la contrainte qui décide.** L'edge vaut
-  +31,6 bps avec l'OI de la minute, +26,8 avec 1 minute de retard, +21,8 avec
-  2 minutes, et plus rien au-delà de 3. Les chiffres publiés ici sont ceux **à
-  1 minute de retard** : je n'ai pas pu établir avec certitude, depuis l'archive
-  seule, si l'horodatage Binance des tranches de 5 minutes est un instantané ou
-  une fin de fenêtre. Le test d'alignement en temps-événement penche pour
-  l'instantané (saut d'OI moyen de +0,88 % dans la tranche du signal contre
-  +0,34 % dans la suivante), mais pencher n'est pas prouver. En pratique il
-  faudrait interroger l'open interest en temps réel plutôt que l'historique
-  par tranches — **à vérifier contre les limites de débit de l'API avant de
-  construire quoi que ce soit dessus.**
+| | Fuite (retard 0) | **Causal (retard 5 min)** |
+|---|---|---|
+| Net par épisode | +31,6 bps | +22,5 bps |
+| t | 2,44 | **0,93** |
+| Mois positifs | 17/24 | 12/24 |
+| Sans les 3 meilleurs mois | +19,5 | **−16,4** |
+| 2024-25 / 2025-26 | +18,1 / +43,4 | **−42,4 / +77,6** |
+| Sorties positives après retrait des 3 meilleurs mois | 16/16 | **0/16** |
+| Sorties positives sur les deux périodes | 16/16 | **0/16** |
+
+La dose-réponse cesse d'être monotone, les deux périodes se contredisent
+frontalement, et aucune des seize règles de sortie ne survit. **Il n'y a pas de
+discriminant.** Le troisième look-ahead de cette étude, et le plus coûteux.
+
+### Ce qui reste vrai malgré tout
+
+- Le test du prix implicite (`resolve_timestamp.py`) est réutilisable : il date
+  n'importe quel instantané d'open interest à la minute près, sans dépendre de
+  la documentation.
+- La question « l'OI en temps réel porte-t-elle un signal ? » reste **ouverte et
+  non tranchée par ces données**. L'archive ne publie que des instantanés au pas
+  de 5 minutes ; un opérateur interrogeant l'OI instantanée aurait une donnée
+  plus fraîche que mon retard causal, sans pour autant disposer du futur. Mon
+  résultat à retard 0 n'est pas un argument en sa faveur : il utilisait des
+  informations postérieures au signal, que ce même opérateur n'aurait pas.
+
+---
+
+## 1 quater. Le flux d'ordres tick par tick : rien non plus
+
+Dernière source disponible, et la seule immunisée au biais qui a tué l'open
+interest : les `aggTrades` portent un horodatage à la milliseconde, il n'y a
+rien à supposer sur leur alignement. 6 209 ignitions, 3 798 jours de trades
+streamés (téléchargés, agrégés, jetés — sinon ça ne tient pas sur le disque).
+
+Six hypothèses, direction posée avant le test : déséquilibre agressif à l'achat,
+gros ordres acheteurs, print unique dominant, impact par unité de volume,
+accélération de l'arrivée des ordres, flux réparti plutôt qu'en à-coups.
+
+**Résultat : 0/10 filtres nets positifs avec IS et OOS positifs à 60 min**, 1/10
+à 120 min — et celui-là va dans le sens inverse de l'hypothèse. Les gradients
+par quintile sont du bruit pur (pour le déséquilibre acheteur : +15,5, +36,4,
+−41,1, +9,3, +25,2 bps).
+
+---
+
+## 1 quinquies. Le chiffre qui clôt la question : le slippage réel
+
+Toute l'étude compare un gisement brut à un péage supposé de 19 bps, dont 5 bps
+de slippage par côté. **Ce 5 bps était une hypothèse de travail, jamais
+vérifiée** — et c'est le nombre qui décide de tout.
+
+Les ticks permettent enfin de le mesurer : on rejoue un ordre au marché de X
+dollars au moment du signal, en consommant les trades agressifs réellement
+survenus, et on compare le prix moyen obtenu au dernier prix affiché. Mesuré sur
+**1 520 ignitions de plus de 8 %** :
+
+| Taille de l'ordre | Médiane | Moyenne | p75 | p90 |
+|---|---|---|---|---|
+| 1 000 $ | 1,6 bps | 2,1 | 6,2 | 12,2 |
+| 5 000 $ | 4,6 bps | 5,5 | 11,8 | 23,9 |
+| **10 000 $** | **6,8 bps** | 8,0 | 17,1 | 32,2 |
+| 25 000 $ | 12,5 bps | 16,6 | 29,1 | 55,7 |
+| 50 000 $ | 20,7 bps | 33,1 | 49,1 | 88,4 |
+| 100 000 $ | 37,9 bps | 56,7 | 79,8 | 146,7 |
+
+C'est une **borne inférieure** : on consomme le flux qui s'est effectivement
+produit, sans compter que notre propre ordre aurait déplacé le carnet.
+
+Le coût aller-retour réel devient donc, pour une position de 10 000 $ :
+4,5 + 6,8 à l'entrée, autant à la sortie, soit **≈ 23 bps en médiane** et plus
+de 40 au p75 — **contre un gisement brut de 19,5 bps**. À 50 000 $ par position,
+le péage passe à 50 bps.
+
+**Le coût de prendre la liquidité dans exactement les bougies que cette
+stratégie veut trader est supérieur à ce que le mouvement rapporte.** Ce n'est
+plus une hypothèse défavorable, c'est une mesure. Et cela fixe le plafond de
+capacité : la taille à laquelle l'arithmétique tiendrait encore est de l'ordre
+de 1 000 à 5 000 $ par position — ce qui n'est pas une activité.
+
+---
+
+## 1 sexies. Ce que valait ma propre recherche
+
+Après avoir cherché aussi large, la question honnête est : combien d'hypothèses
+ai-je testées, et qu'aurait produit le hasard seul ?
+
+**519 tests distincts.** Sous l'hypothèse nulle — aucun edge nulle part — le
+meilleur de 519 tests indépendants affiche un t-stat attendu de **3,54**.
+
+| « Trouvaille » | t | Verdict |
+|---|---|---|
+| Queue `r_burst>8%` | 2,3 | sous le seuil du hasard |
+| Fade `vol_mult` 25-60× | 7,7 | biais identifié : octobre 2025 |
+| Repli 90 % | 6,0 | biais identifié : ordre des tests intra-barre |
+| Grappe > 15 % | 6,0 | biais identifié : pondération par événement |
+| Open interest | 2,44 | biais identifié : horodatage décalé de +5 min |
+| Flux d'ordres | 1,1 | sous le seuil du hasard |
+
+Aucun résultat de cette étude ne survit **conjointement** au seuil du hasard et
+aux contrôles de biais. Les deux qui dépassaient 3,54 s'expliquent par un défaut
+précis de mon protocole, pas par un phénomène de marché.
+
+---
+
+## 1 septies. Les trois look-ahead, et comment les attraper
+
+C'est la partie réutilisable. Chacun a produit un résultat spectaculaire et
+faux, et chacun se détecte par un test simple.
+
+**1. Utiliser la clôture d'une barre pour décider d'un événement intra-barre.**
+Mon test de repli vérifiait l'invalidation du signal (`close < L`) avant le
+remplissage, alors qu'un ordre limite au repos s'exécute dès que le prix touche
+le niveau. J'écartais donc rétroactivement les barres qui cassaient le niveau et
+poursuivaient leur chute — exactement la population perdante. +59 bps devenus
++13.
+*Détection :* forcer l'ordre chronologique strict des tests dans la boucle, et
+vérifier qu'un filtre ne consulte jamais une valeur postérieure à sa décision.
+
+**2. Pondérer par événement ce qu'un portefeuille prend par épisode.**
+Le signal « grappe » affichait +111 bps sur 1 709 événements — qui n'étaient que
+473 épisodes indépendants, dont un seul, à 150 événements et +822 bps, portait
+la moyenne. Un portefeuille à 3 positions n'en prend que 3. Pondéré par épisode :
+−6,3 bps.
+*Détection :* regrouper les événements séparés de moins d'une heure et
+recalculer. Si la moyenne change de signe, le t-stat initial ne mesurait rien.
+
+**3. Supposer l'alignement d'une source externe.**
+Les tranches d'open interest étiquetées T décrivent l'état à T+5. Lire la
+tranche du signal, c'était mesurer la variation d'OI **après** le signal.
+*Détection :* le fichier contient l'OI en contrats et en dollars — leur rapport
+est le prix au moment du relevé. Comparé aux klines 1 minute, il date
+l'instantané à la minute près (écart de 0,06 bps sur BTC au bon décalage, contre
+16,6 bps au décalage supposé). `resolve_timestamp.py` est réutilisable pour
+n'importe quelle source horodatée qui publie deux grandeurs dont le rapport est
+observable ailleurs.
 
 ---
 
@@ -417,29 +521,49 @@ avec le même niveau de garde-fous que ci-dessus. **Je le donne comme piste, pas
 comme stratégie validée**, et c'est une piste à l'opposé de ce que tu cherchais —
 en direction comme en horizon.
 
-## 8. Ce qu'il faudrait pour aller plus loin
+## 8. Ce qu'il faudrait — et ce qui est désormais exclu
 
-L'étude est négative sur les données 1 minute OHLCV. Ce n'est pas la même chose
-que « le scalp de pump est impossible ». Ce qui manque, par ordre d'importance :
+Au début de cette étude, je listais quatre manques : le carnet et le flux
+trade-par-trade, une exécution qui ne paie pas le taker, l'open interest, et le
+flux de news horodaté. Trois ont été traités depuis. Le bilan a changé.
 
-1. **Le carnet et le flux trade-par-trade.** Le seuil de rentabilité est à 9,7
-   bps par côté. À cette échelle, le signal utile est *dans* la microstructure —
-   déséquilibre du carnet, taille et agressivité des trades, vitesse d'arrivée
-   des ordres. Une bougie de 1 minute agrège tout ça en 5 nombres et détruit
-   précisément l'information qui décide. C'est le vrai plafond de cette étude.
-2. **Une exécution qui ne paie pas le taker.** Toute l'approche consiste à
-   franchir le spread au pire moment. Un scalp rentable à cette échelle se joue
-   probablement en maker — mais mon test C montre qu'un simple ordre limite sur
-   repli est anti-sélectionné, donc ça demande une vraie logique de placement.
-3. **L'open interest et le funding en temps réel.** Distinguer un pump porté par
-   du spot (achats réels, potentiellement durable) d'un pump porté par du levier
-   (squeeze, retombée rapide) est exactement la distinction que mes features
-   OHLCV ne savent pas faire — et c'est probablement celle qui compte.
-4. **Le flux de news horodaté.** La prémisse de départ est « un pump sur news ».
-   Sans la news, on détecte la conséquence avec une minute de retard et sans
-   savoir si elle en vaut la peine.
+**Exclu par la mesure, pas par l'hypothèse :**
 
----
+- *Le flux trade-par-trade.* Testé (§1 quater), six hypothèses de microstructure,
+  rien qui transfère hors échantillon. C'était mon principal espoir ; il est
+  éteint.
+- *L'open interest.* Testé (§1 ter). Le signal apparent venait d'un décalage
+  d'horodatage de 5 minutes.
+- *Le slippage.* Mesuré (§1 quinquies). Il est supérieur au gisement dès
+  10 000 $ par position. C'est le verrou dur : même avec un discriminant
+  parfait, la taille exploitable serait dérisoire.
+
+**Ce qui reste ouvert, honnêtement :**
+
+- *L'open interest en temps réel.* L'archive ne publie que des instantanés au
+  pas de 5 minutes. Un opérateur interrogeant l'OI instantanée disposerait d'une
+  donnée plus fraîche que mon meilleur test causal, sans pour autant disposer du
+  futur. Je n'ai pas pu trancher, et mon résultat à retard nul n'est pas un
+  argument en sa faveur — il utilisait de l'information postérieure au signal.
+- *Le carnet d'ordres lui-même.* Binance Vision ne publie pas de `bookTicker`
+  mensuel exploitable pour cet univers. La profondeur et sa dynamique restent
+  non testées.
+- *Le flux de news horodaté.* La prémisse de départ est « un pump sur news ».
+  Sans la news, on détecte la conséquence avec une minute de retard et sans
+  savoir si elle en vaut la peine. C'est la seule piste qui attaquerait le
+  problème par l'amont plutôt que par le signal de prix — et la seule qui, si
+  elle donnait un avantage en **temps** plutôt qu'en **prédiction**, changerait
+  l'arithmétique du slippage.
+- *Le maker plutôt que le taker.* Tout ce qui précède paie le spread au pire
+  moment. Un placement passif intelligent changerait l'équation — mais mon test
+  C montre qu'un simple ordre limite sur repli est anti-sélectionné, donc ça
+  demande une vraie logique de placement, pas un ordre naïf.
+
+**Ce que je ne recommanderais pas de faire :** continuer à chercher un filtre
+sur les klines. 519 tests, six familles de features, deux ans de données, trois
+biais débusqués — le gisement brut est mesuré à ~19 bps et le péage réel à
+23 bps ou plus. Le problème n'est pas qu'on n'a pas trouvé le bon filtre ; c'est
+que la marge est plus petite que le coût de l'exécution.
 
 ## 9. Reproduire
 
@@ -470,7 +594,15 @@ bash run_hist.sh                            # période 2024-09 -> 2025-09
 python3 build_breadth.py                    # largeur de marché
 python3 test_micro.py                       # levier vs demande réelle
 python3 walkforward_final.py                # la procédure, sélection comprise
-python3 check_lag2.py && python3 bt_lag1.py # sensibilité à la fraîcheur + backtest final
+python3 check_lag2.py && python3 bt_lag1.py  # sensibilité à la fraîcheur
+python3 resolve_timestamp.py                # datation de l'instantané d'OI
+python3 bt_aligne.py                        # backtest avec alignement correct
+
+# --- flux d'ordres et coûts réels (§1 quater à 1 sexies) ---
+python3 run_flow.py && python3 test_flow.py # microstructure tick par tick
+python3 test_slippage.py                    # le slippage réel
+python3 dl_funding.py && python3 test_funding.py
+python3 bilan_recherche.py                  # combien de tests, quel seuil de hasard
 python3 test_daily_v2.py                    # effet journalier (contrôle âge de listing)
 python3 analyze_oct.py                      # décomposition du 10 octobre
 ```
@@ -497,4 +629,9 @@ Le cache disque est la règle : rien n'est retéléchargé deux fois.
 | `evaluate2.py` | **pondération par épisode** — la correction qui invalide les moyennes par événement |
 | `walkforward_final.py` | walk-forward sur la procédure de sélection elle-même |
 | `check_lag2.py` / `check_align.py` | fraîcheur de l'OI et convention d'horodatage |
-| `bt_lag1.py` | **le backtest final, OI retardée d'une minute** |
+| `bt_aligne.py` | backtest avec l'open interest correctement alignée |
+| `resolve_timestamp.py` | **date un instantané d'OI à la minute, par le prix implicite** |
+| `flow_features.py` / `run_flow.py` | flux d'ordres tick par tick, en streaming |
+| `test_slippage.py` | **le slippage réel, mesuré sur les trades** |
+| `test_funding.py` | coût de funding par durée de détention |
+| `bilan_recherche.py` | comptage des tests et seuil du hasard |
