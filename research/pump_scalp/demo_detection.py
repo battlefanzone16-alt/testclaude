@@ -46,23 +46,31 @@ print(f"  -> le mouvement observe vaut {f.r_burst.loc[first]*100:.2f} %, "
 print(f"  -> volume des 5 min : {f.qv_burst.loc[first]/1e6:.2f} M$ contre "
       f"{f.qv_ref_1d.loc[first]*5/1e6:.3f} M$ en temps normal ({f.vol_mult.loc[first]:.0f}x)")
 
-# --- Le declenchement le plus fort de la journee ---------------------------
-top = sub.z_burst[ok[j]].idxmax()
-print(f"\n{'='*80}\nDeclenchement le PLUS FORT de la journee : {top:%H:%M} UTC")
-w2 = sub.loc[top - pd.Timedelta(minutes=6): top + pd.Timedelta(minutes=8)]
-t2 = pd.DataFrame({
-    "close": df.close.reindex(w2.index).round(6),
-    "r_5m_%": (w2.r_burst*100).round(2), "z": w2.z_burst.round(1),
-    "vol_x": w2.vol_mult.round(1), "taker_%": (w2.taker_ratio*100).round(0),
-    "r_btc_%": (w2.r_btc*100).round(2),
-    "declenche": ["  <<<< OUI" if ok.get(i, False) else "" for i in w2.index]})
-t2.index = t2.index.strftime("%H:%M")
-print(t2.to_string())
-o = df.open.to_numpy(); pos = df.index.get_indexer([top])[0]
-for h in (60, 120, 180):
-    e = min(pos+1+h, len(o)-1)
-    print(f"  si on entre a l'ouverture de {df.index[pos+1]:%H:%M} : "
-          f"+{h//60}h -> {(o[e]/o[pos+1]-1)*100:+.2f} %")
-print(f"\nSur la journee : {int(ok[j].sum())} minutes declenchent, "
-      f"dont {int((sub.z_burst[ok[j]]>6).sum())} avec z>6 et "
-      f"{int((sub.z_burst[ok[j]]>9).sum())} avec z>9.")
+# --- Ce que le systeme prend REELLEMENT -------------------------------------
+# Piege a eviter : afficher la minute de z maximal donne une fausse image. Le
+# systeme n'attend pas le pic, il entre au PREMIER declenchement puis se met en
+# sourdine 60 minutes. Le z maximal arrive en general au climax du mouvement,
+# bien apres l'entree reelle.
+print(f"\n{'='*84}")
+print("Entrees reellement generees (premier declenchement, puis cooldown 60 min)")
+keep, last = [], -10**9
+idx = np.flatnonzero(ok.to_numpy())
+for i in idx:
+    if i - last >= 60:
+        keep.append(i); last = i
+o = df.open.to_numpy()
+rows = []
+for i in keep:
+    if f.index[i].normalize() != d0 or i + 1 >= len(o):
+        continue
+    e = i + 1
+    r = {"signal_UTC": f"{f.index[i]:%H:%M}", "entree_Paris": f"{f.index[e]+pd.Timedelta(hours=2):%H:%M}",
+         "prix": round(float(o[e]), 6), "z": round(float(f.z_burst.iloc[i]), 1),
+         "vol_x": round(float(f.vol_mult.iloc[i]), 0)}
+    for h in (60, 120, 240):
+        j2 = min(e + h, len(o) - 1)
+        r[f"+{h//60}h_%"] = round((o[j2] / o[e] - 1) * 100, 2)
+    rows.append(r)
+print(pd.DataFrame(rows).to_string(index=False))
+print(f"\nSur la journee : {int(ok[j].sum())} minutes remplissent les conditions,")
+print(f"regroupees par le cooldown en {len(rows)} entrees effectives.")
