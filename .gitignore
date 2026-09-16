@@ -8,3 +8,9 @@ data_h4/
 cache_binance/
 rapport.html
 reports_whipsaw.csv
+
+# research/pump_scalp : donnees lourdes, jamais versionnees
+research/pump_scalp/cache/
+*.npz
+research/pump_scalp/symbols_all.txt
+research/pump_scalp/*.log
