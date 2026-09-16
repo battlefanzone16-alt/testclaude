@@ -3,8 +3,8 @@
 **Verdict : le scalp d'ignition ne passe pas le coût de transaction.** Le
 gisement brut existe, il est réel, il est mesurable — et il fait très
 exactement la taille du péage. Ce document montre comment j'y arrive, ce que
-j'ai essayé, et le seul effet qui a survécu à tous les contrôles (ce n'est ni
-la direction ni l'horizon que tu visais).
+j'ai essayé, et le seul effet qui a survécu aux contrôles — un effet de médiane,
+à l'opposé de ce que tu cherchais en direction comme en horizon.
 
 Données : 319 perps USDT, bougies 1 minute, 2025-09-01 → 2026-09-01
 (12 mois, ~4,4 Go, 168 M de bougies), source `data.binance.vision`.
@@ -111,9 +111,32 @@ t = 2,3. Encourageant. Décomposition mensuelle :
 les 11 autres mois          ~0 bps
 ```
 
-Hors octobre, le même filtre donne **−26 bps**. La cascade de liquidations
-d'octobre 2025 suffit, à elle seule, à rendre positive n'importe quelle moyenne
-sur 12 mois.
+Hors octobre, le même filtre donne **−26 bps**.
+
+**Mais exclure 31 jours était trop brutal, et c'est une erreur de ma part.**
+L'anomalie ne fait pas un mois, elle fait un jour. Décomposition d'octobre au
+jour le jour (`analyze_oct.py`) :
+
+| Exclusion | `r_burst>8%`, fwd 60 min | t | OOS |
+|---|---|---|---|
+| tout inclus | +115,1 bps | 2,3 | −32,8 |
+| sans le **10 octobre seul** | **+19,8 bps** | 0,4 | −32,8 |
+| sans tout octobre | −25,6 bps | −0,5 | −32,8 |
+
+Le 10 octobre porte **74 % de l'edge du mois** à lui seul : 152 signaux, dont
+**98 dans la seule heure de 22 h UTC**, pour une moyenne de +851 bps. Et même
+amputé de ce jour, octobre garde une moyenne de +94 bps pour une **médiane de
+−1,2 bps** — le reste du mois est lui aussi porté par une poignée d'événements,
+pas par une dérive large.
+
+L'exclusion fine change donc le chiffre (+19,8 au lieu de −25,6) mais pas le
+verdict : t = 0,4, net +0,8 bps, OOS −32,8 bps.
+
+Dernier point sur cette anomalie : elle n'était même pas entièrement capturable.
+Avec la contrainte de 3 positions simultanées, sur les 228 signaux émis le 10
+octobre, le portefeuille n'en prend que **51** — 27 % du P&L total de l'année
+pour 0,6 % des trades. Une moyenne poolée d'event study pondère les 152 signaux
+à égalité ; un compte de trading n'en voit qu'une fraction.
 
 J'ai donc changé de critère d'évaluation en cours d'étude. Une moyenne poolée et
 un t-stat sur des événements fortement clusterisés dans le temps ne mesurent
@@ -203,40 +226,71 @@ d'un martingale. C'est précisément pour ça que toute l'étude mesure des
 **moyennes conditionnelles** plutôt que de chercher le bon trailing stop.
 
 La grille de 64 règles (`run_backtest.py`) le confirme empiriquement : brut
-médian +5,8 bps, net médian −13,2 bps. Les courbes d'equity finissent à 0,15× le
-capital avec 98 % de drawdown — une petite espérance négative, composée 24 fois
-par jour, ruine mécaniquement.
+médian +5,8 bps, net médian −13,2 bps.
+
+Une précision sur les courbes d'equity, pour ne pas surinterpréter. La meilleure
+variante a une espérance arithmétique de **+0,45 bps par trade** — indiscernable
+de zéro — avec un écart-type de 8,6 % par trade. Ce qui détruit l'equity n'est
+donc pas une espérance négative, c'est le **frein de volatilité** :
+
+| Taille par trade | Equity finale | Max DD | Frein de volatilité |
+|---|---|---|---|
+| 2 % | 0,995 | 17,5 % | 1,3 pt |
+| 5 % | 0,941 | 40,2 % | 8,0 pts |
+| 10 % | 0,756 | 68,0 % | 31,9 pts |
+| 25 % | 0,157 | 97,6 % | 194,9 pts |
+
+Le message correct est donc : à taille raisonnable on ne gagne ni ne perd rien
+(0,995× sur un an), à taille agressive le frein de volatilité ruine. Dans les
+deux cas il n'y a pas d'edge à exploiter — mais il ne faut pas lire la courbe à
+0,157× comme la preuve d'une espérance fortement négative.
 
 ---
 
-## 7. Le seul effet qui survit à tout
+## 7. Le seul effet qui survit — et sa fragilité
 
-En refaisant exactement la même event study **au pas journalier** :
+En refaisant exactement la même event study **au pas journalier** : après un pump
+quotidien > +15 %, le token rend **−11,4 % en médiane** sur les 10 jours suivants.
+Cette médiane est remarquablement stable — elle ne bouge pas de −11 % quelle que
+soit la sous-population.
 
-**Après un pump quotidien > +15 %, le token rend −3,5 % en moyenne et −11,6 % en
-médiane sur les 10 jours suivants** (n = 2 310, t = −3,1), négatif en IS (−441
-bps) comme en OOS (−271 bps), avec **10 mois sur 11** dans le même sens. Pour
-`> +30 %`, c'est −7,0 % en moyenne.
+**La moyenne, elle, n'est pas robuste, et j'avais surestimé ce point dans une
+première version.** Mon premier script excluait par effet de bord les 30 premiers
+jours de cotation de chaque token (le filtre de volume exige une médiane glissante
+sur 30 jours, et les lignes sans historique tombaient silencieusement). Ce n'était
+pas un choix méthodologique, c'était un accident — et il porte le signe du
+résultat :
 
-C'est la statistique la plus robuste de toute l'étude. Mais lis bien ce que ça
-dit : c'est l'inverse de ce que tu cherchais, **en direction** (il faut vendre)
-et **en horizon** (jours, pas minutes).
+| Population | n | moyenne | médiane | t | max |
+|---|---|---|---|---|---|
+| tout, aucune exclusion | 2 662 | **+1,46 %** | −11,4 % | 0,68 | +3 244 % |
+| âge ≥ 30 j *(mon run initial)* | 2 310 | **−3,48 %** | −11,6 % | −3,10 | +826 % |
+| âge ≥ 60 j | 1 999 | −2,96 % | −11,4 % | −2,45 | +826 % |
+| âge < 30 j *(jeunes listings seuls)* | 352 | **+33,90 %** | −9,0 % | 2,34 | +3 244 % |
 
-Et ce n'est pas exploitable naïvement :
+Les tokens fraîchement listés portent toute la queue droite. Un short à
+l'espérance ne gagne que si on les exclut — ce n'est pas un edge, c'est un choix
+d'univers, et il doit être annoncé comme tel.
+
+Ce qui reste, honnêtement : **un effet de médiane, pas un effet de moyenne**.
+La moitié des pumps quotidiens rendent plus de 11 % dans les 10 jours, de façon
+très stable dans le temps. Mais la distribution est telle que
 
 ```
-distribution à 10 jours : p50 −11,6%   p90 +37%   p99 +175%   pire cas +826%
+p50 −11,4%   p95 +67%   max +826% (et +3 244% si on garde les jeunes listings)
 6,9 % des cas montent encore de plus de 50 %
 ```
 
-La médiane est très favorable au short, la queue droite est mortelle. Le funding
-d'un perp en plein pump est positif, donc **payé au short** — un vent arrière
-réel, qui ne compensera jamais une queue à +200 %. Ici le sujet n'est pas le
-signal, c'est le dimensionnement et le stop. **Je le donne comme piste, pas
-comme stratégie validée** : elle mérite sa propre étude, avec le même niveau de
-garde-fous que ci-dessus.
+qu'un short non protégé a une espérance nulle voire positive pour le token. Le
+funding d'un perp en plein pump est positif, donc **payé au short** — un vent
+arrière réel, qui ne compensera jamais une queue à +800 %.
 
----
+Autrement dit : il y a peut-être quelque chose à construire là, mais l'objet
+d'étude serait **le stop**, pas le signal. Un short avec coupure stricte peut en
+théorie récolter la médiane en payant la queue ; encore faut-il le backtester,
+avec le même niveau de garde-fous que ci-dessus. **Je le donne comme piste, pas
+comme stratégie validée**, et c'est une piste à l'opposé de ce que tu cherchais —
+en direction comme en horizon.
 
 ## 8. Ce qu'il faudrait pour aller plus loin
 
@@ -284,7 +338,8 @@ python3 ml_search.py                        # stratégie D (le test qui tranche)
 python3 build_paths.py --events events_tail.parquet
 python3 run_backtest.py                     # grille de 64 règles de sortie
 python3 cost_sensitivity.py                 # le seuil de rentabilité
-python3 test_daily.py                       # l'effet journalier
+python3 test_daily_v2.py                    # effet journalier (contrôle âge de listing)
+python3 analyze_oct.py                      # décomposition du 10 octobre
 ```
 
 Le cache disque est la règle : rien n'est retéléchargé deux fois.
@@ -298,5 +353,7 @@ Le cache disque est la règle : rien n'est retéléchargé deux fois.
 | `extract_events.py` | détection des ignitions + surface forward |
 | `evaluate.py` | **le critère de consistance mensuelle** |
 | `simulate.py` / `simulate_vec.py` | moteur de trade + contrainte de portefeuille |
+| `analyze_oct.py` | décomposition jour par jour de l'anomalie du 10 octobre |
+| `test_daily_v2.py` | effet journalier, avec contrôle explicite de l'âge de listing |
 | `test_pullback.py` | stratégie C (attention à l'ordre des tests, §5) |
 | `ml_search.py` | recherche systématique avec validation OOS |
