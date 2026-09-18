@@ -242,3 +242,68 @@ Trois reserves honnetes, qui limitent la portee du verdict :
    24/7 n'a pas de value area quotidienne au sens de Steidlmayer.
 3. **Aucun filtre de contexte.** Ni tendance, ni volatilite, ni regime. La regle
    a ete prise seule, comme enoncee.
+
+---
+
+# Cycle 3 bis — Le prix exact de "a l'oeil je sais ou poser mon VP"
+
+La reserve principale du cycle 3 etait que le profil y est ancre sur une fenetre
+glissante, alors qu'un operateur choisit ses bornes : un plus bas, un plus haut.
+On a donc ancre le profil exactement comme enonce — entre le dernier plus bas et
+le dernier plus haut — et mesure la MEME strategie deux fois :
+
+- **causale** : un swing n'existe qu'une fois confirme par un retracement du seuil ;
+- **a l'oeil** : le swing est disponible des la bougie ou il se forme, comme sur
+  un graphique termine.
+
+Seule cette disponibilite change. Ni la regle, ni les couts, ni la donnee.
+
+## Ce que l'oeil s'offre : la mesure du decalage
+
+| seuil de swing | swings sur 18 mois | retard median de confirmation | 90e centile |
+|---|---|---|---|
+| 2 % | 1 440 | 1 barre | 9 |
+| 3 % | 658 | 3 barres | 19 |
+| 5 % | 245 | **10 barres** | 49 |
+| 8 % | 91 | **30 barres** | 137 |
+| 12 % | 40 | **82 barres** | 236 |
+
+A 12 %, un plus haut n'est connaissable que **trois jours et demi** apres sa
+formation. Sur un graphique termine, il saute aux yeux instantanement.
+
+## Le resultat, ensemble sans parametre (72 variantes par sens)
+
+| actif | periode | PF causal | PF a l'oeil | Sharpe a l'oeil | DD a l'oeil |
+|---|---|---|---|---|---|
+| BTC | bear 2022 | 1.10 | **3.32** | 6.21 | -5 % |
+| BTC | 2023-2026 | 0.74 | **2.61** | 4.37 | -5 % |
+| LINK | bear 2022 | 0.78 | **3.07** | 8.47 | -14 % |
+| LINK | 2023-2026 | 0.81 | **2.79** | 7.07 | -10 % |
+| AVAX | bear 2022 | 0.91 | **2.82** | 7.85 | -10 % |
+| AVAX | 2023-2026 | 0.90 | **3.14** | 8.22 | -8 % |
+
+Mediane causale : **0.86**. Mediane a l'oeil : **2.95**, avec des rendements
+allant jusqu'a +84 577 % et des Sharpe de 4 a 8.
+
+## Ce qu'il faut en retenir
+
+Un Sharpe de 8 avec 8 % de drawdown maximal sur de l'altcoin perpetuel n'existe
+pas. C'est la signature d'une fuite d'information, et ici on sait exactement
+laquelle : quelques dizaines d'heures d'avance sur la confirmation d'un swing.
+
+**L'ecart entre 0.86 et 2.95 ne mesure pas une competence de lecture. Il mesure
+la valeur de connaitre la suite.** C'est pour cela qu'une conviction batie en
+faisant defiler des graphiques passes ne peut pas servir de preuve, quelle que
+soit la qualite de l'operateur : le graphique montre le resultat en meme temps
+que le setup, et l'oeil ne sait pas separer les deux.
+
+Cela ne demontre pas qu'un placement discretionnaire n'a aucune valeur. Cela
+demontre qu'aucun examen retrospectif ne peut l'etablir. Le seul protocole valide
+est prospectif : horodater les bornes du profil AVANT le mouvement, puis mesurer.
+
+## Heuristique a garder
+
+Devant un backtest crypto qui affiche un Sharpe superieur a 3 et un drawdown
+inferieur a 15 %, ne pas chercher pourquoi il est bon : chercher par ou
+l'information fuit. Ici, la fuite tenait en une seule ligne de code — le moment
+ou un swing devient connaissable.

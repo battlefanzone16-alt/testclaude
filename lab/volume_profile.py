@@ -69,3 +69,50 @@ def niveaux(signal_index: pd.DatetimeIndex, fin: pd.DataFrame, *,
         out[i] = value_area(centres, h, part)
 
     return pd.DataFrame(out, index=signal_index, columns=["poc", "val", "vah"])
+
+
+def niveaux_ancres(barres: pd.DataFrame, fin: pd.DataFrame, zig: pd.DataFrame, *,
+                   mode: str = "jambe", n_bins: int = 60, part: float = 0.70,
+                   max_jours: int = 60) -> pd.DataFrame:
+    """POC / VAL / VAH d'un profil ancre sur des points de retournement.
+
+    mode "jambe"        : profil entre les deux derniers swings, soit exactement
+                          "entre un plus bas et un plus haut"
+    mode "depuis_swing" : profil du dernier swing jusqu'a la barre courante
+    """
+    prix = ((fin["high"] + fin["low"] + fin["close"]) / 3).to_numpy()
+    vol = fin["volume"].to_numpy()
+    ts_fin = fin.index.to_numpy()
+    ts_bar = barres.index.to_numpy()
+
+    ih = zig["i_haut"].to_numpy().astype(int)
+    ib = zig["i_bas"].to_numpy().astype(int)
+    out = np.full((len(barres), 3), np.nan)
+    limite = np.timedelta64(max_jours, "D")
+
+    for t in range(len(barres)):
+        a_bar, b_bar = ih[t], ib[t]
+        if a_bar < 0 or b_bar < 0:
+            continue
+        if mode == "jambe":
+            deb, fin_bar = min(a_bar, b_bar), max(a_bar, b_bar)
+        else:
+            deb, fin_bar = max(a_bar, b_bar), t
+        if fin_bar <= deb:
+            continue
+        t0, t1 = ts_bar[deb], ts_bar[fin_bar]
+        if t1 - t0 > limite:
+            t0 = t1 - limite
+        a = np.searchsorted(ts_fin, t0, side="left")
+        b = np.searchsorted(ts_fin, t1, side="left")
+        if b - a < 12:
+            continue
+        p, v = prix[a:b], vol[a:b]
+        lo, hi = p.min(), p.max()
+        if not np.isfinite(lo) or hi <= lo:
+            continue
+        bords = np.linspace(lo, hi, n_bins + 1)
+        h, _ = np.histogram(p, bins=bords, weights=v)
+        centres = (bords[:-1] + bords[1:]) / 2
+        out[t] = value_area(centres, h, part)
+    return pd.DataFrame(out, index=barres.index, columns=["poc", "val", "vah"])
