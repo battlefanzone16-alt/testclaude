@@ -73,3 +73,71 @@ BNB 1.09.
 - Le funding (+11.8 %/an paye par les longs sur BTC) n'a PAS ete le probleme ici :
   l'exposition de 29 % et les passages short le ramenent a un cout quasi nul.
   Le vrai cout est transactionnel : 29.8 % de capital en frais sur 38 mois.
+
+---
+
+# Cycle 2 — Cascade de liquidations, BTCUSDT 5 min
+
+Statut : **rejete en in-sample.** Les actifs de validation n'ont pas ete ouverts :
+rien n'a atteint le stade du gel, donc AVAX, LINK et DOGE restent vierges pour un
+cycle ulterieur.
+
+## Donnee
+
+Le flux des liquidations n'est pas archive par Binance. Substitut retenu :
+l'**open interest au pas de 5 minutes** (archives `metrics`, disponibles depuis
+2021). Une position liquidee disparait de l'open interest ; une vente deliberee
+non. C'est cette difference qui devait separer le signal d'un simple
+"acheter les baisses".
+
+## Hypothese 1 — fader la cascade
+
+Acheter apres une chute rapide accompagnee d'une baisse d'open interest.
+
+**Faux, et uniformement faux** : profit factor de 0.51 a 0.79 sur les 27 cellules
+de la grille. Avant meme les couts, le gain median par trade est de **-0.018 %**.
+Ce n'est donc pas un edge mange par les frais, c'est l'absence d'edge. Les seules
+cellules positives en brut (horizon de 5 minutes, cote short) rapportent 4.5 bps
+par trade contre 13 bps de couts aller-retour.
+
+## Hypothese 2 — suivre la cascade
+
+Si acheter la cascade perd uniformement, c'est que le mouvement continue : une
+liquidation declenche le palier de marge suivant. On teste le miroir.
+
+Premiere lecture encourageante : a fenetre de detection d'une heure, profit factor
+de 1.26 a 1.63 sur les huit cellules. Mais le balayage fin de la fenetre et du
+seuil montre un damier, pas un plateau, et surtout ceci :
+
+| trades minimum | configs | PF median |
+|---|---|---|
+| >= 50 | 162 | 1.21 |
+| >= 100 | 115 | 1.12 |
+| >= 150 | 71 | 1.05 |
+| >= 200 | 38 | 1.00 |
+| >= 300 | 8 | **0.98** |
+
+**Correlation entre log(nombre de trades) et profit factor : -0.78.** Le profit
+factor ne mesure pas un edge, il mesure la raretes des trades. Les cellules a
+PF 2.14 et 2.66 comptent 59 et 38 trades. A 300 trades, il ne reste rien.
+
+Zero configuration sur 180 passe les criteres pre-enregistres ; les vingt qui
+franchissent le PF et le nombre de trades echouent toutes la coherence
+trimestrielle (3 ou 4 trimestres positifs sur 6).
+
+518 configurations testees au total sur ce cycle, toutes familles confondues.
+
+## Ce que les deux cycles disent ensemble
+
+1. **Le mono-actif est la contrainte qui tue, pas le manque d'idees.** Le cycle 1
+   a trouve un edge de tendance reel mais sous-dimensionne : 204 trades dont 3
+   font tout le resultat. Le cycle 2 a cherche du cote des horizons courts, la ou
+   les trades sont nombreux — et a la ou le nombre de trades devient suffisant
+   pour conclure (300+), le profit factor vaut 0.98.
+2. **Les memes parametres de tendance sortaient PF 1.43-1.45 simultanement sur
+   ETH, SOL et XRP.** Un edge faible mesure sur quatre actifs a la fois est plus
+   solide qu'un edge fort mesure sur un seul.
+3. **Le profit factor seul ne decide de rien.** Les deux cycles ont produit des PF
+   superieurs a 1 qui ne valaient rien : l'un porte par trois trades, l'autre par
+   la raretes des trades. Un PF doit toujours etre lu avec son nombre de trades,
+   son intervalle de confiance et sa sensibilite a une barre de retard.

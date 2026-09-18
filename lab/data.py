@@ -166,3 +166,54 @@ if __name__ == "__main__":
     fr = load_funding("BTCUSDT")
     print(f"funding : {len(fr)} points, {fr.index[0]} -> {fr.index[-1]}, "
           f"moyenne 8h = {fr.mean()*100:.4f}% ({fr.mean()*3*365*100:.1f}%/an)")
+
+
+def load_metrics(symbol: str = "BTCUSDT",
+                 start: str = "2022-01", end: str = "2023-06",
+                 workers: int = 8) -> pd.DataFrame:
+    """Open interest et ratios long/short, pas de 5 minutes.
+
+    Binance ne publie ces metriques qu'en fichiers QUOTIDIENS : on telecharge en
+    parallele et on met en cache par mois pour ne le faire qu'une fois.
+
+    Le flux des liquidations, lui, n'est pas archive. La chute d'open interest
+    en est le meilleur substitut disponible : une position liquidee disparait de
+    l'OI, une vente deliberee non.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    cols = ["create_time", "symbol", "sum_open_interest", "sum_open_interest_value",
+            "count_toptrader_long_short_ratio", "sum_toptrader_long_short_ratio",
+            "count_long_short_ratio", "sum_taker_long_short_vol_ratio"]
+    out = []
+    for year, month in _months(start, end):
+        key = CACHE / "metrics" / symbol / f"{year}-{month:02d}.parquet"
+
+        def build(y=year, m=month):
+            jours = pd.period_range(f"{y}-{m:02d}", periods=1, freq="M")[0]
+            dates = pd.date_range(jours.start_time, jours.end_time, freq="D")
+
+            def un_jour(d):
+                url = (f"{BASE}/futures/um/daily/metrics/{symbol}/"
+                       f"{symbol}-metrics-{d:%Y-%m-%d}.zip")
+                raw = _fetch(url)
+                return None if raw is None else _read_csv(_unzip(raw), cols)
+
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                morceaux = [x for x in ex.map(un_jour, dates) if x is not None]
+            if not morceaux:
+                return None
+            df = pd.concat(morceaux, ignore_index=True)
+            df.index = pd.DatetimeIndex(pd.to_datetime(df["create_time"]))
+            df.index.name = "ts"
+            garde = ["sum_open_interest", "sum_open_interest_value",
+                     "count_long_short_ratio", "sum_taker_long_short_vol_ratio"]
+            return df[garde].astype(float).sort_index()
+
+        df = _cached(key, build)
+        if df is not None:
+            out.append(df)
+    if not out:
+        raise RuntimeError(f"aucune metrique pour {symbol}")
+    df = pd.concat(out).sort_index()
+    return df[~df.index.duplicated(keep="first")]
