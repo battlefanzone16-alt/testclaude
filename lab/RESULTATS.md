@@ -307,3 +307,78 @@ Devant un backtest crypto qui affiche un Sharpe superieur a 3 et un drawdown
 inferieur a 15 %, ne pas chercher pourquoi il est bon : chercher par ou
 l'information fuit. Ici, la fuite tenait en une seule ligne de code — le moment
 ou un swing devient connaissable.
+
+---
+
+# Cycle 4 — VP hebdomadaire fixe : un edge reel, plus petit que les frais
+
+Idee de l'utilisateur, et c'est la bonne : au lieu de deviner un plus bas et un
+plus haut, **fixer le profil sur la semaine calendaire** — lundi 00h00 au
+dimanche 23h59 UTC — et l'appliquer a la semaine suivante. Les bornes sont alors
+connues a la seconde ou on s'en sert. Aucune fuite d'information n'est possible,
+aucun swing a confirmer, aucun jugement a porter.
+
+## La logique se verifie-t-elle ? Mesure brute, sans strategie ni couts
+
+3 396 declenchements sur cinq actifs et cinq ans (BTC, ETH, LINK, AVAX, DOGE) :
+deux clotures hors de la value area de la semaine precedente, puis retour, puis
+on note lequel de l'objectif (le bord oppose) ou de l'invalidation (l'extreme de
+l'excursion) arrive le premier.
+
+Taux de reussite global **34.2 %** pour un seuil d'equilibre de 30.1 % au R
+median — apparemment gagnant, p < 0.001. **Et pourtant l'esperance vaut
+-0.055 R**, negative, IC 90 % bootstrap [-0.103 ; -0.005].
+
+Le piege : le seuil d'equilibre se calcule sur le R MEDIAN, mais le R varie
+d'un cas a l'autre, et il varie contre nous.
+
+| quintile de R | cas | reussite | seuil | stop median | esperance |
+|---|---|---|---|---|---|
+| R tres bas (stop large) | 680 | 68.4 % | 64.6 % | 6.48 % | **+0.006 R** |
+| R bas | 679 | 44.3 % | 42.9 % | 3.90 % | **+0.025 R** |
+| R moyen | 679 | 30.9 % | 30.1 % | 2.55 % | **+0.016 R** |
+| R haut | 679 | 17.8 % | 20.7 % | 1.77 % | -0.136 R |
+| R tres haut (stop serre) | 679 | 9.4 % | 11.0 % | 1.01 % | -0.188 R |
+
+Quand le prix n'est descendu qu'a peine sous la VAL, le stop colle a l'entree :
+le R affiche est magnifique et le stop saute presque a coup sur. Ce sont ces cas
+qui plombent la moyenne. **Les trois premiers quintiles sont positifs.**
+
+## L'edge existe. Il est plus petit que les frais.
+
+Le cout d'un aller-retour Hyperliquid (13 bps) exprime dans l'unite de risque de
+chaque quintile :
+
+| quintile | 1 R vaut | cout en R | edge | net |
+|---|---|---|---|---|
+| R tres bas | 6.48 % | 0.020 R | +0.006 R | **-0.014 R** |
+| R bas | 3.90 % | 0.033 R | +0.025 R | **-0.008 R** |
+| R moyen | 2.55 % | 0.051 R | +0.016 R | **-0.035 R** |
+
+Le backtest complet, ensemble de 18 variantes par sens sans parametre elu, dit
+exactement la meme chose :
+
+| | PF brut | PF net | couts |
+|---|---|---|---|
+| mediane 2022-01 -> 2023-06 | 1.01 | 0.91 | 22 % du capital |
+| mediane 2023-07 -> 2026-08 | **1.10** | 0.99 | **48 % du capital** |
+
+Sur 2023-2026, quatre actifs sur cinq ont un profit factor brut superieur a 1
+(ETH 1.17, AVAX 1.19, DOGE 1.10, LINK 1.03, BTC 0.83).
+
+## Ce qui change tout par rapport aux cycles precedents
+
+Les cycles 1 a 3 butaient sur l'absence de signal. Ici le signal existe et le
+probleme est **le cout par trade**. C'est un probleme d'ingenierie, pas de
+marche, et il a trois leviers connus :
+
+1. **Entrer en limite, pas au marche.** L'entree de cette regle est un NIVEAU DE
+   PRIX connu une semaine a l'avance, pas un evenement a poursuivre. C'est le
+   seul cas ou supposer un fill maker est defendable : on pose l'ordre a la VAL
+   et on attend que le prix vienne. Maker 1.5 bps contre taker 4.5 bps.
+2. **Ne prendre que les excursions profondes.** Le quintile "R bas" a une
+   esperance de +0.025 R pour un cout de 0.033 R en taker, mais de 0.013 R en
+   maker — soit **+0.012 R net**. Reserve : ce quintile a ete choisi apres avoir
+   vu les resultats, il lui faut sa propre validation.
+3. **Reduire la rotation.** 48 % du capital en frais sur trois ans pour 27 %
+   d'exposition moyenne : c'est le nombre de trades qui coute, pas leur taille.
