@@ -49,7 +49,8 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
             cible_mode: str = "bord", marge_fill: float = 0.0,
             stop_mode: str = "extreme", stop_param: float = 1.0,
             fin: pd.DataFrame | None = None,
-            slippage_stop: float | None = None) -> Resultat:
+            slippage_stop: float | None = None,
+            sens_autorise: pd.Series | None = None) -> Resultat:
     """Rejoue la regle barre par barre, avec ou sans ordre limite a l'entree.
 
     cible_mode "bord" : objectif au bord oppose de la zone (la VAH pour un long),
@@ -88,6 +89,13 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
         heures = idx.to_series().diff().dt.total_seconds().div(3600).fillna(1.0).to_numpy()
     else:
         fh = np.zeros(n); heures = np.ones(n)
+
+    # sens_autorise : +1 long seul, -1 short seul, 0 rien, NaN pas de contrainte.
+    # Le filtre bloque l'OUVERTURE ; une position deja ouverte se deroule
+    # normalement, sinon on couperait des trades pour une raison posterieure a
+    # leur entree.
+    autorise = (None if sens_autorise is None
+                else sens_autorise.reindex(idx).to_numpy(float))
 
     trades = []
     setups = remplis = 0
@@ -170,6 +178,9 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
                 continue
 
             if compte >= n_bougies and etat == "attente":
+                if autorise is not None and np.isfinite(autorise[i]) and autorise[i] != sens:
+                    compte = 0
+                    continue
                 bord = val[i] if sens == 1 else vah[i]
                 profondeur = abs(bord - extreme) / bord
                 if profondeur >= profondeur_min:

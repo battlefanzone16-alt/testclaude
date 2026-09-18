@@ -715,3 +715,74 @@ Ce qui reste du travail, et qui vaut plus que la strategie : un moteur qui ne
 laisse pas fuir l'information, un modele de couts au bareme reel, un simulateur
 d'ordres limites qui compte les non-executions, et neuf cycles ou chaque rejet
 est date et explique.
+
+---
+
+# Cycle 10 — L'hypothese de derive, testee comme il faut. Elle est fausse.
+
+Protocole ecrit et commite AVANT la mesure (commit a00412c, 18:15:58 UTC) :
+hypothese, filtre, fenetre de 26 semaines, ancrage, dix actifs vierges et trois
+criteres de reussite. Rien n'a bouge apres.
+
+Dix actifs jamais touches : UNI, XLM, ALGO, ICP, EOS, SAND, MANA, GALA, CHZ, RUNE.
+
+## Resultat
+
+| | trades | PF |
+|---|---|---|
+| avec le filtre de derive | 1 396 | **0.951** |
+| sans filtre | 2 716 | **0.954** |
+
+IC 90 % en grappes d'actifs : **[0.860 ; 1.052]**, 19.7 % des tirages au-dessus
+de 1.
+
+| critere ecrit d'avance | mesure | verdict |
+|---|---|---|
+| PF >= 1.10 | 0.951 | ECHOUE |
+| borne basse de l'IC > 1.00 | 0.860 | ECHOUE |
+| le filtre ameliore | 0.951 contre 0.954 | ECHOUE |
+
+Secondaire, pour information seulement : ancrage "depuis l'extreme" avec filtre
+0.992, ancrage "jambe" avec filtre 0.885.
+
+## Pourquoi la correlation du cycle 9 ne s'est pas reproduite
+
+Au cycle 9, la correlation entre derive annuelle et profit factor valait +0.51
+avec p = 0.020. Elle semblait solide. Elle ne l'etait pas, et la raison est la
+meme que celle du VP place a l'oeil.
+
+**La derive que j'y mesurais etait la derive REALISEE sur toute la periode** —
+du premier au dernier prix de 2022-2026. Ce nombre n'est pas connaissable a
+l'avance. La correlation disait donc : "la strategie a mieux marche sur les
+actifs qui, retrospectivement, ont le moins baisse". C'est vrai, et c'est
+inexploitable.
+
+Des que la derive est mesuree de facon causale — les 26 semaines precedentes,
+connues le dimanche soir — l'effet disparait entierement : 0.951 contre 0.954.
+
+J'ai reproduit, dans mon propre diagnostic, l'erreur que j'avais passe un cycle
+entier a demontrer chez l'operateur humain. Une variable retrospective glissee
+dans une analyse fabrique une explication qui ne se transporte pas.
+
+## Les trois echantillons independants
+
+| echantillon | PF |
+|---|---|
+| dix premiers actifs (conception et selection) | 1.103 |
+| dix suivants (vierges) | 1.006 |
+| dix derniers (vierges, protocole pre-enregistre) | **0.954** |
+
+Le profit factor decroit a mesure que la contamination diminue. La meilleure
+estimation de l'edge reel est **inferieure ou egale a 1.00**.
+
+## Conclusion de l'etude
+
+Le protocole du cycle 10 disait : "le filtre n'ameliore pas -> l'hypothese est
+fausse, l'etude s'arrete." Elle s'arrete.
+
+La rotation de value area, sous toutes les formes testees — profil glissant,
+hebdomadaire fixe, ancre sur les extremes, avec ou sans filtre de derive, au
+marche ou en ordre limite — ne porte pas d'edge exploitable sur les perpetuels
+crypto. Trente actifs, dix cycles, environ un millier de configurations.
+
+Quarante perps liquides restent vierges pour une prochaine hypothese.
