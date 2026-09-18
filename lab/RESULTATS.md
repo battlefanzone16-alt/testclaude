@@ -141,3 +141,104 @@ trimestrielle (3 ou 4 trimestres positifs sur 6).
    superieurs a 1 qui ne valaient rien : l'un porte par trois trades, l'autre par
    la raretes des trades. Un PF doit toujours etre lu avec son nombre de trades,
    son intervalle de confiance et sa sensibilite a une barre de retard.
+
+---
+
+# Cycle 3 — Rotation de value area (profil de volume), BTC/AVAX/LINK/DOGE
+
+Regle testee, telle qu'enoncee : profil de volume entre un plus bas et un plus
+haut ; le prix cloture sous la VAL pendant deux bougies ; des qu'il repasse
+au-dessus de la VAL on est long, objectif la VAH. Symetrique au-dessus de la VAH.
+
+Le profil est construit a partir des bougies **5 minutes**, pas des bougies de
+signal : douze points de mesure par heure valent mieux qu'un volume horaire pose
+au prix typique. Value area a 70 % du volume autour du POC, methode standard.
+
+## Premiere lecture, encourageante
+
+La regle telle quelle (H1, profil 10 jours, deux bougies) donne en plein bear
+2022 : **cote long PF 1.15**, 105 trades, 29 % de reussite, duree mediane 7 h,
+pendant que le buy & hold perd 39.6 %. Cote short, PF 0.90.
+
+Le balayage de 360 configurations fait mieux : **13 passent tous les criteres
+pre-enregistres**, la meilleure a PF 1.59, Sharpe 1.06, drawdown -19 %, 81 trades
+et 5 trimestres positifs sur 6. Les cycles 1 et 2 n'en avaient laisse passer
+aucune. A ce stade, la regle semblait tenir.
+
+## Ce qui l'a tuee : le nombre de bins
+
+Le nombre de bins du profil est un choix d'affichage. Il ne change pas le marche,
+il change la resolution du dessin. Or :
+
+| bins | 30 | 40 | 50 | **60** | 80 | 100 | 150 |
+|---|---|---|---|---|---|---|---|
+| PF | 1.28 | 1.17 | 1.22 | **1.59** | 1.00 | 1.03 | 1.41 |
+
+Et la meme instabilite sur la profondeur du profil, a un jour pres :
+
+| lookback | 8 j | 9 j | **10 j** | 11 j | 12 j |
+|---|---|---|---|---|---|
+| PF | 1.14 | 1.08 | **1.59** | 1.11 | 0.98 |
+
+Une regle dont le resultat change quand on redessine le meme graphique n'a pas
+d'edge : elle a de la variance. La configuration a 1.59 n'etait pas le bon
+reglage, c'etait le sommet d'une distribution.
+
+## Le test qui tranche : l'ensemble sans parametre
+
+Pour savoir si la FAMILLE porte un edge, on cesse d'elire un reglage : 216
+variantes (9 profondeurs x 4 resolutions x 2 invalidations x 3 durees maximales)
+votent, et la position est la moyenne des votes. Plus aucun parametre n'est
+choisi, donc plus aucun accident de grille n'est possible.
+
+Dispersion des 216 variantes prises isolement, cote long, in-sample :
+**PF median 1.02, quartiles 0.91-1.17, 55 % au-dessus de 1.** Un pile ou face.
+
+## Le verdict, sur quatre actifs et sept ans
+
+L'ensemble n'ayant aucun parametre libre, il n'y a rien a geler et rien a
+consommer : chaque mesure est un test d'hypothese, pas une selection. On peut
+donc regarder partout.
+
+Profit factor net, long + short :
+
+| | BTC | AVAX | LINK | DOGE | mediane |
+|---|---|---|---|---|---|
+| bear 2022 -> mi 2023 | 1.01 | 0.78 | 0.77 | 0.55 | **0.78** |
+| mi 2023 -> aout 2026 | 0.68 | 0.95 | 0.90 | 0.77 | **0.83** |
+
+**Huit combinaisons sur huit sont en dessous de 1.** Le seul 1.01 est sur l'actif
+et la fenetre ou la regle a ete reglee.
+
+## La nuance qui compte : la regle n'est pas fausse, elle est vide
+
+Avant couts :
+
+| | PF brut | PF net | gain brut par trade |
+|---|---|---|---|
+| BTC, bear 2022 | 1.21 | 1.01 | +0.074 % |
+| BTC, 2023-2026 | 0.87 | 0.68 | -0.038 % |
+| LINK, bear 2022 | 0.86 | 0.77 | -0.074 % |
+| LINK, 2023-2026 | 1.02 | 0.90 | +0.010 % |
+
+Gain brut moyen par trade : **-0.007 %**, soit zero. La rotation de value area
+n'est pas anti-predictive, elle est **non predictive** : la sortie puis le retour
+dans la zone ne dit rien de plus que le hasard sur la suite. Les 13 bps de couts
+aller-retour font le reste, et ils sont lourds : **45 % du capital en frais** sur
+la periode 2023-2026, pour une exposition moyenne de 27 %.
+
+## Ce que ce test ne prouve PAS
+
+Trois reserves honnetes, qui limitent la portee du verdict :
+
+1. **Le profil est ancre sur une fenetre glissante, pas sur un swing choisi.**
+   Un operateur qui selectionne a l'oeil "le bon" plus bas et "le bon" plus haut
+   fait quelque chose que cette implementation ne reproduit pas. C'est la
+   difference la plus serieuse, et elle est testable : il suffit d'ancrer le
+   profil sur des points de retournement detectes (ZigZag) plutot que sur les
+   N derniers jours.
+2. **Crypto perps, H1 et H4, 2022-2026.** La regle vient des futures actions et
+   indices, ou la seance a un debut, une fin et une cloture. Un marche ouvert
+   24/7 n'a pas de value area quotidienne au sens de Steidlmayer.
+3. **Aucun filtre de contexte.** Ni tendance, ni volatilite, ni regime. La regle
+   a ete prise seule, comme enoncee.
