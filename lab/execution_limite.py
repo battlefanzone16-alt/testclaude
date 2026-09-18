@@ -46,7 +46,10 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
             n_bougies: int = 2, attente: int = 12, profondeur_min: float = 0.0,
             max_barres: int = 240, couts: CoutsHL = HL,
             risque_par_trade: float = 0.01, entree: str = "limite",
-            cible_mode: str = "bord", marge_fill: float = 0.0) -> Resultat:
+            cible_mode: str = "bord", marge_fill: float = 0.0,
+            stop_mode: str = "extreme", stop_param: float = 1.0,
+            fin: pd.DataFrame | None = None,
+            slippage_stop: float | None = None) -> Resultat:
     """Rejoue la regle barre par barre, avec ou sans ordre limite a l'entree.
 
     cible_mode "bord" : objectif au bord oppose de la zone (la VAH pour un long),
@@ -62,6 +65,16 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
                      prix, pour que le setup soit retenu. C'est le filtre qui
                      evite les stops colles a l'entree.
     """
+    # chemin fin : quand il est fourni, on determine QUI de l'objectif ou du stop
+    # est touche en premier a l'interieur de la barre. Sans lui, on suppose le stop
+    # d'abord, ce qui est conservateur mais grossier des que le stop est serre.
+    if fin is not None:
+        f_ts = fin.index.to_numpy()
+        f_h = fin["high"].to_numpy(); f_b = fin["low"].to_numpy()
+        bornes = np.searchsorted(f_ts, barres.index.to_numpy(), side="left")
+        bornes = np.append(bornes, len(f_ts))
+    slip_stop = couts.slippage if slippage_stop is None else slippage_stop
+
     o = barres["open"].to_numpy(); h = barres["high"].to_numpy()
     b = barres["low"].to_numpy(); c = barres["close"].to_numpy()
     val = niv["val"].to_numpy(float); vah = niv["vah"].to_numpy(float)
@@ -95,15 +108,28 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
                 age = i - t_entree
                 touche_stop = (b[i] <= stop) if sens == 1 else (h[i] >= stop)
                 touche_cible = (h[i] >= cible) if sens == 1 else (b[i] <= cible)
+                if fin is not None and touche_stop and touche_cible:
+                    # les deux dans la meme heure : on tranche au pas de 5 minutes
+                    a5, b5 = bornes[i], bornes[i + 1]
+                    touche_stop = touche_cible = False
+                    for k in range(a5, b5):
+                        s_k = (f_b[k] <= stop) if sens == 1 else (f_h[k] >= stop)
+                        c_k = (f_h[k] >= cible) if sens == 1 else (f_b[k] <= cible)
+                        if s_k and c_k:
+                            touche_stop = True; break     # meme bougie de 5 min : au stop
+                        if s_k:
+                            touche_stop = True; break
+                        if c_k:
+                            touche_cible = True; break
                 sortie = None
-                if touche_stop:                       # on verifie le stop d'abord
+                if touche_stop:                       # a defaut, le stop d'abord
                     sortie, prix_sortie, maker = "stop", stop, False
                 elif touche_cible:
                     sortie, prix_sortie, maker = "cible", cible, True
                 elif age >= max_barres:
                     sortie, prix_sortie, maker = "temps", c[i], False
                 if sortie:
-                    frais_sortie = couts.maker if maker else couts.taker + couts.slippage
+                    frais_sortie = couts.maker if maker else couts.taker + slip_stop
                     brut = sens * (prix_sortie - prix_entree) / prix_entree
                     cout_f = sum(fh[j] * heures[j] for j in range(t_entree, i + 1)) * sens
                     trades.append({"date": idx[t_entree], "sortie": idx[i], "sens": sens,
@@ -148,7 +174,16 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
                 profondeur = abs(bord - extreme) / bord
                 if profondeur >= profondeur_min:
                     setups += 1
-                    stop = extreme
+                    # stop_mode "extreme"  : a l'extreme de l'excursion (defaut)
+                    #           "fraction" : a stop_param du chemin entre le bord et l'extreme
+                    #           "pct"      : a stop_param pour cent du prix d'entree
+                    if stop_mode == "fraction":
+                        stop = bord - stop_param * (bord - extreme)
+                    elif stop_mode == "pct":
+                        stop = (bord * (1 - stop_param) if sens == 1
+                                else bord * (1 + stop_param))
+                    else:
+                        stop = extreme
                     if entree == "limite":
                         prix_ordre, t_ordre = bord, i
                         etat = "ordre_pose"

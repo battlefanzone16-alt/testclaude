@@ -527,3 +527,70 @@ Portefeuille equipondere sur les dix actifs, 0.5 % de risque par trade :
    de drawdown a 2 % de risque.
 4. Les shorts portent l'essentiel (1.21 contre 1.06). Une asymetrie inexpliquee
    est une fragilite, pas une decouverte.
+
+---
+
+# Cycle 7 — Reduire le stop pour ameliorer le ratio : l'illusion d'unite
+
+Question posee : le gain est mince, peut-on resserrer le stop pour augmenter le
+rapport gain/risque ?
+
+## Ce que le premier test semble dire
+
+| stop | PF | esperance | risque median | % objectif | RR des gagnants |
+|---|---|---|---|---|---|
+| 25 % de l'excursion | 1.158 | **+0.326 R** | 0.63 % | 24 % | 3.07 |
+| 40 % | 1.141 | +0.194 R | 1.06 % | 31 % | 1.88 |
+| 100 % (actuel) | 1.131 | +0.031 R | 2.87 % | 49 % | 0.76 |
+
+L'esperance en R est multipliee par dix. Le profit factor, lui, passe de 1.131 a
+1.158 — **plus 2.4 %**.
+
+**Le R n'est pas de l'argent, c'est le risque pris comme etalon.** Diviser le
+stop par 4.5 divise le denominateur : les R gonflent mecaniquement sans qu'un
+dollar supplementaire n'entre. Le seul chiffre en argent est le profit factor, et
+il ne bouge presque pas. Toute lecture d'une strategie en R doit etre doublee
+d'une lecture en argent, sans quoi on confond un changement d'unite avec un gain.
+
+## Le test qui tranche : chemin au pas de 5 minutes et slippage reel
+
+Avec un stop a 0.63 %, deux approximations deviennent fausses. D'une part une
+bougie horaire ne dit pas qui, du stop ou de l'objectif, a ete touche en premier.
+D'autre part 2 bps de slippage representent 3 % du risque quand le stop est a
+2.87 %, mais **16 %** quand il est a 0.63 %.
+
+Le simulateur tranche donc desormais au pas de 5 minutes quand les deux niveaux
+tombent dans la meme heure, et le slippage du stop devient un parametre.
+
+| stop | risque med | slip 2 bps | slip 10 bps | slip 25 bps | slip 50 bps |
+|---|---|---|---|---|---|
+| 25 % de l'excursion | 0.63 % | 1.164 | 1.067 | **0.923** | 0.753 |
+| 40 % | 1.06 % | 1.144 | 1.080 | **0.978** | 0.843 |
+| 70 % | 1.96 % | 1.153 | 1.113 | **1.044** | 0.947 |
+| **extreme (actuel)** | 2.87 % | 1.132 | 1.103 | **1.053** | 0.978 |
+| fixe 0.5 % | 0.50 % | 1.214 | 1.067 | **0.870** | 0.665 |
+| fixe 2 % | 2.00 % | 1.033 | 0.995 | 0.930 | 0.840 |
+
+Le stop serre gagne dans le monde ideal et perd dans le vrai. La raison est
+arithmetique : le slippage est un cout fixe **en prix**, le stop est l'unite de
+**risque**. Resserrer le stop n'abaisse pas le risque, il multiplie le poids de
+l'execution dans chaque perte.
+
+Le stop actuel — l'extreme de l'excursion — est conserve : c'est le plus robuste
+des six testes, et le seul qui reste au-dessus de 1 a 25 bps de slippage.
+
+## Ou se trouve le vrai levier
+
+Le profit factor de 1.13 ne depend ni du stop ni du ratio. Il se monetise par la
+taille et par le nombre, pas par un meilleur rapport :
+
+| risque par trade | rendement annuel | drawdown maximal |
+|---|---|---|
+| 0.5 % | +1.3 % | -3.1 % |
+| 2 % | environ +5 % | environ -12 % |
+| 3 % | environ +8 % | environ -19 % |
+
+La relation etant proportionnelle, le seul levier qui ameliore le rendement sans
+augmenter le risque de ruine est **le nombre d'actifs** : plus de trades pour le
+meme edge donnent une courbe plus lisse, donc autorisent une taille plus grande a
+drawdown constant. Dix actifs sont couverts ; Hyperliquid en cote plus de cent.
