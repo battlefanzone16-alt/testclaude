@@ -17,6 +17,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CoutsHL:
     taker: float = 0.00045       # 4.5 bps, tier de base
+    maker: float = 0.00015       # 1.5 bps, tier de base
     slippage: float = 0.00020    # 2 bps, BTC en taille modeste
     funding_par_heure: int = 8   # le taux Binance est 8 h, HL preleve chaque heure
 

@@ -382,3 +382,72 @@ marche, et il a trois leviers connus :
    vu les resultats, il lui faut sa propre validation.
 3. **Reduire la rotation.** 48 % du capital en frais sur trois ans pour 27 %
    d'exposition moyenne : c'est le nombre de trades qui coute, pas leur taille.
+
+---
+
+# Cycle 5 — Entree en ordre limite : le signe bascule, la significativite non
+
+Le cycle 4 laissait un signal reel mange par les frais taker. L'entree de la
+regle etant un NIVEAU connu une semaine a l'avance, on peut la travailler en
+passif — c'est le seul cas de toute cette etude ou supposer un fill maker se
+defend.
+
+## Le point de microstructure qui commande tout
+
+Un achat limite pose AU-DESSUS du prix courant est marketable : il traverse le
+spread et paie le taker. Poser un achat a la VAL pendant que le prix est SOUS la
+VAL ne donne donc aucun rabais.
+
+La seule construction reellement passive : attendre que la bougie cloture
+au-dessus de la VAL, puis poser l'achat a la VAL — le prix est alors au-dessus du
+niveau, l'ordre est passif, et il se remplit si le prix y revient. On entre sur
+le repli vers le niveau, pas sur la cassure. **On rate donc les setups qui ne
+reviennent jamais**, et le simulateur doit le compter : c'est le prix de la
+patience. Taux de remplissage mesure : **73 a 77 %**.
+
+Il en decoule un moteur evenementiel (lab/execution_limite.py) : le moteur
+vectoriel suppose qu'une position voulue est obtenue, ce qui est faux pour un
+ordre limite. Frais differencies : entree maker 1.5 bps, objectif maker 1.5 bps
+(vente limite passive), stop et sortie par le temps en taker 4.5 bps + slippage.
+
+## Ce qui n'a pas marche
+
+- **Le filtre de profondeur d'excursion** : PF median 0.96 / 0.91 / 0.99 / 0.92 /
+  0.88 pour des seuils de 0 a 5 %. L'idee tiree du quintile de R ne se transpose
+  pas.
+- **L'objectif au POC plutot qu'au bord oppose** : 0.92 contre 0.93 sur les
+  actifs de conception, 1.09 contre 1.07 sur les autres. Indifferent.
+- **L'hypothese volatilite**, avancee pour expliquer pourquoi les actifs jamais
+  mesures faisaient mieux (mediane 1.07, 7/9 au-dessus de 1) que les actifs de
+  conception (0.93, 4/10) : correlation de rang entre largeur de value area et
+  profit factor **-0.15, p = 0.53**. Aucune relation. L'ecart etait du hasard.
+
+## Ce qui a marche
+
+L'ordre limite ameliore 7 cas sur 10 et divise les frais par 1.7. Surtout, il
+change le signe de l'esperance.
+
+Agregat de **2 556 trades**, dix actifs, cinq ans :
+
+| | par trade |
+|---|---|
+| brut | **+0.066 R** |
+| frais maker | -0.036 R |
+| **net** | **+0.032 R** |
+
+Profit factor global **1.022**. En taker, les frais auraient coute 0.075 R et le
+net aurait ete de **-0.009 R**.
+
+## Pourquoi ce n'est pas encore une strategie
+
+Ecart-type de 1.94 R par trade, donc t = +0.83 et **p = 0.404**. L'esperance
+n'est pas distinguable de zero. Pour detecter +0.032 R avec cette dispersion a
+80 % de puissance, il faudrait environ **29 000 trades** : on en a 2 556.
+
+Et un profit factor de 1.022 tient a l'interieur des barres d'erreur du modele de
+couts lui-meme : changer l'hypothese de slippage d'un seul point de base deplace
+le resultat de facon comparable a l'edge mesure.
+
+Conclusion : la regle, exécutée en passif sur un profil hebdomadaire fixe, est a
+l'equilibre. Ce n'est plus une perte — c'est le premier resultat non negatif de
+toute l'etude — mais l'edge devrait environ **tripler** pour sortir du bruit.
