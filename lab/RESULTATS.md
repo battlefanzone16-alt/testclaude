@@ -451,3 +451,79 @@ le resultat de facon comparable a l'edge mesure.
 Conclusion : la regle, exécutée en passif sur un profil hebdomadaire fixe, est a
 l'equilibre. Ce n'est plus une perte — c'est le premier resultat non negatif de
 toute l'etude — mais l'edge devrait environ **tripler** pour sortir du bruit.
+
+---
+
+# Cycle 6 — L'ancrage qui tient : depuis le dernier extreme de la semaine
+
+Idee de l'utilisateur : au lieu de tirer le profil sur toute la semaine, se
+servir du plus bas et du plus haut de la semaine. Les deux sont connus le
+dimanche a 23h59, donc l'ancrage reste strictement causal.
+
+Trois ancrages compares, memes trades, meme execution, memes couts :
+
+| ancrage | trades | PF | esperance | brut |
+|---|---|---|---|---|
+| semaine entiere | 2 556 | 1.022 | +0.032 R | +0.066 R |
+| **jambe bas -> haut** | 2 548 | **0.996** | **-0.019 R** | **+0.012 R** |
+| **depuis le dernier extreme** | 3 850 | **1.131** | +0.031 R | +0.064 R |
+
+La jambe entre les deux extremes — l'idee telle qu'enoncee — **detruit l'edge** :
+le brut tombe de 0.066 a 0.012 R. Ce qu'on croyait exclure comme du bruit n'en
+etait pas. En revanche, garder le profil **depuis le dernier extreme jusqu'a la
+cloture** — le mouvement en cours plutot que la jambe passee — donne la meilleure
+mesure de toute l'etude, avec une value area deux fois plus etroite (3.5 % du
+prix contre 8.6 %), donc plus de trades et des invalidations plus proches.
+
+## Il passe le test qui avait tue le cycle 3
+
+| bins | 30 | 40 | 50 | 60 | 80 | 100 | 150 |
+|---|---|---|---|---|---|---|---|
+| PF | 1.128 | 1.140 | 1.128 | 1.131 | 1.110 | 1.097 | 1.063 |
+
+Tout tient entre 1.06 et 1.14, la ou le cycle 3 oscillait de 1.00 a 1.59. Idem
+sur la part de value area (1.090 a 1.131) et sur l'attente de remplissage et la
+duree maximale (1.115 a 1.178).
+
+## Et tous les autres decoupages
+
+| decoupage | trades | PF |
+|---|---|---|
+| 2022-01 -> 2023-06 | 983 | 1.144 |
+| 2023-07 -> 2026-08 | 2 867 | 1.127 |
+| actifs de conception | 2 050 | 1.160 |
+| actifs jamais mesures | 1 800 | 1.107 |
+| shorts | 1 873 | **1.210** |
+| longs | 1 977 | 1.062 |
+
+## Significativite, et le stress qui compte
+
+Sur **3 861 trades, dix actifs, 2022-01 a 2026-08 : profit factor 1.131**, huit
+actifs sur dix au-dessus de 1. Bootstrap en grappes — on retire des ACTIFS
+entiers, pas des trades isoles, pour respecter leur correlation :
+**IC 90 % [1.050 ; 1.213], 99.6 % des tirages au-dessus de 1.**
+
+Le stress decisif pour toute strategie passive est la file d'attente : notre
+simulateur remplit des que le prix touche le niveau, alors qu'en realite un
+effleurement peut ne pas servir tandis qu'une traversee sert toujours.
+
+| il faut traverser de | 0 | 2 bps | 5 bps | 10 bps | 20 bps |
+|---|---|---|---|---|---|
+| PF | 1.131 | 1.121 | 1.106 | 1.071 | 1.015 |
+
+Et en supposant que le fill maker soit une illusion complete — taker partout —
+**et** qu'il faille traverser de 5 bps : **PF 1.058 sur 3 780 trades**.
+
+Portefeuille equipondere sur les dix actifs, 0.5 % de risque par trade :
+**+1.3 %/an, drawdown maximal -3.1 %, 12 trimestres positifs sur 19.**
+
+## Reserves, et elles sont serieuses
+
+1. Cette variante a emerge apres plusieurs centaines de configurations testees
+   dans la session. **L'intervalle de confiance ne corrige pas cette recherche.**
+2. Les dix actifs ont desormais servi. Il ne reste **aucun bloc vierge**. Tout
+   reglage supplementaire exige des actifs neufs ou du temps neuf.
+3. Le rendement est mince : 1.3 %/an a 0.5 % de risque, environ 5 %/an pour 12 %
+   de drawdown a 2 % de risque.
+4. Les shorts portent l'essentiel (1.21 contre 1.06). Une asymetrie inexpliquee
+   est une fragilite, pas une decouverte.

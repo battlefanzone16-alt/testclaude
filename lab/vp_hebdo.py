@@ -102,3 +102,48 @@ def statistique_rotation(barres: pd.DataFrame, niv: pd.DataFrame, *,
                              "barres_dehors": compte})
             compte = 0
     return pd.DataFrame(evts)
+
+
+def profils_hebdo_jambe(fin: pd.DataFrame, n_bins: int = 60, part: float = 0.70,
+                        mode: str = "jambe") -> pd.DataFrame:
+    """Profil restreint a la jambe entre le plus bas et le plus haut de la semaine.
+
+    Le profil de la semaine entiere melange la jambe qui a fait le mouvement et
+    tout ce qui l'entoure. Ici on ne garde que le volume echange ENTRE les deux
+    extremes de la semaine, dans l'ordre ou ils se sont produits.
+
+    Les deux extremes sont connus le dimanche a 23h59, donc les niveaux servent
+    la semaine suivante sans aucune anticipation.
+
+    mode "jambe"  : du premier extreme au second
+    mode "depuis" : du second extreme a la fin de la semaine (le mouvement en cours)
+    """
+    prix = (fin["high"] + fin["low"] + fin["close"]) / 3
+    sem = fin.index.to_period("W-SUN")
+    lignes = {}
+    for periode, idx in prix.groupby(sem).groups.items():
+        bloc = fin.loc[idx]
+        if len(bloc) < 288:
+            continue
+        i_bas = int(np.argmin(bloc["low"].to_numpy()))
+        i_haut = int(np.argmax(bloc["high"].to_numpy()))
+        if mode == "jambe":
+            a, b = min(i_bas, i_haut), max(i_bas, i_haut) + 1
+        else:
+            a, b = max(i_bas, i_haut), len(bloc)
+        if b - a < 36:                     # moins de trois heures : pas un profil
+            continue
+        p = prix.loc[idx].to_numpy()[a:b]
+        v = bloc["volume"].to_numpy()[a:b]
+        lo, hi = p.min(), p.max()
+        if hi <= lo:
+            continue
+        bords = np.linspace(lo, hi, n_bins + 1)
+        h, _ = np.histogram(p, bins=bords, weights=v)
+        centres = (bords[:-1] + bords[1:]) / 2
+        poc, val, vah = value_area(centres, h, part)
+        lignes[periode] = {"poc": poc, "val": val, "vah": vah,
+                           "haut": hi, "bas": lo, "volume": v.sum(),
+                           "part_semaine": (b - a) / len(bloc),
+                           "sens_jambe": 1 if i_haut > i_bas else -1}
+    return pd.DataFrame(lignes).T.sort_index()

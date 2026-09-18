@@ -46,7 +46,7 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
             n_bougies: int = 2, attente: int = 12, profondeur_min: float = 0.0,
             max_barres: int = 240, couts: CoutsHL = HL,
             risque_par_trade: float = 0.01, entree: str = "limite",
-            cible_mode: str = "bord") -> Resultat:
+            cible_mode: str = "bord", marge_fill: float = 0.0) -> Resultat:
     """Rejoue la regle barre par barre, avec ou sans ordre limite a l'entree.
 
     cible_mode "bord" : objectif au bord oppose de la zone (la VAH pour un long),
@@ -119,7 +119,12 @@ def simuler(barres: pd.DataFrame, niv: pd.DataFrame, funding: pd.Series | None =
                 if i - t_ordre > attente:             # l'ordre expire non rempli
                     etat, compte = "attente", 0
                 else:
-                    touche = (b[i] <= prix_ordre) if sens == 1 else (h[i] >= prix_ordre)
+                    # marge_fill : il ne suffit pas de toucher le niveau, il faut le
+                    # traverser de cette marge. C'est la file d'attente : si le prix
+                    # effleure et repart, l'ordre devant le notre a pris le flux.
+                    seuil_fill = (prix_ordre * (1 - marge_fill) if sens == 1
+                                  else prix_ordre * (1 + marge_fill))
+                    touche = (b[i] <= seuil_fill) if sens == 1 else (h[i] >= seuil_fill)
                     if touche:
                         remplis += 1
                         prix_entree = prix_ordre
