@@ -594,3 +594,64 @@ La relation etant proportionnelle, le seul levier qui ameliore le rendement sans
 augmenter le risque de ruine est **le nombre d'actifs** : plus de trades pour le
 meme edge donnent une courbe plus lisse, donc autorisent une taille plus grande a
 drawdown constant. Dix actifs sont couverts ; Hyperliquid en cote plus de cent.
+
+---
+
+# Cycle 8 — Correction : le dimensionnement ecrasait la seule poche rentable
+
+Le rendement de 1.3 %/an annonce au cycle 6 etait un artefact de dimensionnement,
+pas une propriete de la strategie. Il est corrige ici.
+
+## D'ou vient reellement le P&L
+
+Repartition par quintile de largeur de stop, 3 861 trades, dix actifs :
+
+| quintile | stop median | gain moyen par trade | contribution totale |
+|---|---|---|---|
+| tres serre | 0.91 % | -0.04 % | -0.27 |
+| serre | 1.79 % | -0.03 % | -0.20 |
+| moyen | 2.87 % | +0.05 % | +0.42 |
+| large | 4.65 % | -0.13 % | -1.04 |
+| **tres large** | **8.68 %** | **+0.96 %** | **+7.43** |
+
+**Tout l'edge vit dans les excursions profondes.** Un dimensionnement a risque
+constant donne a ces trades la plus PETITE taille — 0.055 fois le capital contre
+0.70 pour les stops serres — donc il ecrase systematiquement la seule poche qui
+gagne. La regle usuelle "risquer toujours le meme montant" suppose que l'esperance
+est independante de la distance au stop. Ici elle ne l'est pas, et la supposer
+coute un facteur dix.
+
+## Portefeuille corrige, dix actifs
+
+| dimensionnement | rendement annuel | drawdown max | trimestres positifs |
+|---|---|---|---|
+| **notionnel = 1 x capital** | **+13.5 %** | **-15 %** | 13/19 |
+| notionnel = 2 x capital | +26.5 % | -29 % | 13/19 |
+| notionnel = 3 x capital | +38.4 % | -42 % | 13/19 |
+| 0.5 % de risque par trade (chiffre errone du cycle 6) | +0.2 % | -4 % | 11/19 |
+
+## Et en mono-actif ?
+
+Chaque actif seul, notionnel fixe, 2022-01 a 2026-08, environ 400 trades chacun :
+
+| actif | PF | IC 90 % | net | DD |
+|---|---|---|---|---|
+| BTC | 1.026 | [0.82 ; 1.29] | -3.4 % | -41 % |
+| ETH | 1.127 | [0.92 ; 1.37] | +50.0 % | -38 % |
+| LINK | 1.147 | [0.94 ; 1.39] | +88.9 % | -38 % |
+| AVAX | 1.110 | [0.91 ; 1.35] | +44.1 % | -50 % |
+| DOGE | 1.181 | [0.96 ; 1.45] | +109.7 % | -32 % |
+| ADA | 1.321 | **[1.08 ; 1.65]** | +283.2 % | -43 % |
+| OP | 1.107 | [0.88 ; 1.39] | +23.6 % | -72 % |
+| APT | 0.867 | [0.69 ; 1.09] | -78.1 % | -80 % |
+| SUI | 0.891 | [0.71 ; 1.12] | -65.9 % | -78 % |
+| INJ | 1.335 | **[1.08 ; 1.68]** | +412.0 % | -57 % |
+
+Huit actifs sur dix ont un profit factor superieur a 1, mais **seuls deux ont un
+intervalle de confiance qui exclut 1**, trois perdent de l'argent, et les
+drawdowns individuels vont de 32 a 80 % la ou le portefeuille des dix s'arrete a
+15 %. Sur BTC, le seul actif qu'on choisirait spontanement a priori, la strategie
+fait -3.4 % en 4.7 ans.
+
+Le mono-actif sur cette regle est un pari sur le choix de l'actif, fait avant de
+pouvoir le verifier.
