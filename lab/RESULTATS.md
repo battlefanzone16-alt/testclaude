@@ -655,3 +655,63 @@ fait -3.4 % en 4.7 ans.
 
 Le mono-actif sur cette regle est un pari sur le choix de l'actif, fait avant de
 pouvoir le verifier.
+
+---
+
+# Cycle 9 — Dix actifs neufs : l'edge ne generalise pas
+
+Test demande : elargir a dix actifs supplementaires, jamais touches dans ce
+depot sous aucune forme, et les mesurer CHACUN SEUL.
+LTC, ATOM, NEAR, FIL, ARB, TIA, SEI, DOT, ETC, AAVE.
+
+## Mono-actif sur les dix neufs
+
+| actif | trades | PF | IC 90 % | net | DD |
+|---|---|---|---|---|---|
+| LTC | 426 | 1.159 | [0.96 ; 1.39] | +84.0 % | -41 % |
+| ATOM | 435 | **0.828** | [0.67 ; 1.02] | **-79.5 %** | -81 % |
+| NEAR | 442 | 1.049 | [0.85 ; 1.28] | -13.0 % | -58 % |
+| FIL | 405 | 1.033 | [0.85 ; 1.26] | -9.6 % | -49 % |
+| ARB | 300 | 1.057 | [0.84 ; 1.36] | -0.3 % | -68 % |
+| TIA | 295 | 0.994 | [0.79 ; 1.28] | -31.7 % | -66 % |
+| SEI | 289 | **0.814** | [0.64 ; 1.07] | **-80.2 %** | -86 % |
+| DOT | 430 | 1.010 | [0.82 ; 1.22] | -21.4 % | -57 % |
+| ETC | 377 | 1.003 | [0.82 ; 1.22] | -19.6 % | -66 % |
+| AAVE | 432 | 1.146 | [0.95 ; 1.40] | +85.7 % | -47 % |
+
+Sept profit factors sur dix depassent 1, **aucun intervalle de confiance
+n'exclut 1**, **deux actifs sur dix sont rentables**, et le net median vaut
+**-16.3 %**.
+
+## Le chiffre qui conclut
+
+| | trades | PF |
+|---|---|---|
+| dix actifs initiaux | 3 861 | 1.103 |
+| **dix actifs neufs** | 3 831 | **1.006** |
+| les vingt ensemble | 7 692 | 1.054 |
+
+En portefeuille a notionnel fixe, les dix neufs font **-0.1 %/an pour -30 % de
+drawdown**. Les vingt ensemble font +6.9 %/an pour -17 %, mais ce resultat est
+entierement porte par la moitie sur laquelle la regle a ete mise au point.
+
+L'intervalle de confiance en grappes sur les vingt, [1.001 ; 1.106], frole 1 par
+le bas. Il ne dit plus rien d'exploitable.
+
+## Conclusion de l'etude
+
+**La rotation de value area ne porte pas d'edge exploitable sur les perpetuels
+crypto.** Ce qui ressemblait a un profit factor de 1.13 au cycle 6 etait, pour
+environ la moitie, de la selection d'echantillon — et la moitie restante ne
+suffit pas a payer une execution reelle.
+
+Ce cycle est aussi la reponse la plus nette a la question posee au depart, celle
+d'une strategie MONO-ACTIF : sur vingt actifs testes un par un, deux seulement
+ont un intervalle de confiance excluant 1, et ce sont deux actifs differents
+selon l'echantillon. Choisir a l'avance l'actif sur lequel la regle marchera
+n'est pas possible.
+
+Ce qui reste du travail, et qui vaut plus que la strategie : un moteur qui ne
+laisse pas fuir l'information, un modele de couts au bareme reel, un simulateur
+d'ordres limites qui compte les non-executions, et neuf cycles ou chaque rejet
+est date et explique.
